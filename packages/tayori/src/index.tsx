@@ -20,7 +20,7 @@ type SdkData<SdkMethod extends GeneralSdkMethod> =
   SdkReturn<SdkMethod> extends { data: infer D, request: Request, response: Response } ? NonNullable<D> : never;
 
 type OriginalSdkArg<SdkMethod extends GeneralSdkMethod> = Omit<
-  Parameters<SdkMethod>[0],
+  NonNullable<Parameters<SdkMethod>[0]>,
   'responseStyle' | 'throwOnError'
 >;
 
@@ -28,7 +28,7 @@ export type TayoriSdkArg<SdkMethod extends GeneralSdkMethod> = OriginalSdkArg<Sd
   cacheTags?: Array<`#${string}`>
 };
 
-type InternalSWRKey<SdkArg = any> = [GeneralSdkMethod, SdkArg, cacheTags: Array<`#${string}`> | undefined];
+type InternalSWRKey<SdkArg = unknown> = [GeneralSdkMethod, SdkArg, cacheTags: Array<`#${string}`> | undefined];
 
 // SWR doesn't export this type, so I just copy this from SWR impl
 type SWRConfigurationWithOptionalFallback<SWROptions> = SWROptions extends SWRConfiguration
