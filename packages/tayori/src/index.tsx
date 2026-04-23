@@ -2,7 +2,7 @@
 
 import { useStableHandler } from 'foxact/use-stable-handler-only-when-you-know-what-you-are-doing-or-you-will-be-fired';
 import { useStateWithDeps } from 'foxact/use-state-with-deps';
-import { createContext, startTransition, use, useCallback, useRef } from 'react';
+import { createContext, startTransition, use, useCallback, useRef, useTransition } from 'react';
 import { stableHash } from 'stable-hash';
 
 import type { SWRConfiguration, Key as SWRKey, Middleware as SWRMiddleware, SWRResponse } from 'swr';
@@ -125,45 +125,64 @@ export function tayori<
 
     const [stateRef, stateDependenciesRef, setState] = useStateWithDeps<{
       data: SdkData<SdkMethod> | undefined,
-      error: unknown | undefined,
-      isMutating: boolean
+      error: unknown | undefined
     }>({
-      isMutating: false,
       data: undefined,
       error: undefined
     });
+
+    // Our trigger may be called within startTransition or <form action /> prop
+    //
+    // In that case, if we store `isMutating` as a state (no matter useState or useStateWithDeps),
+    // React will always schedule that `isMutating` update after the transition (by the time
+    // submission already finished), which makes `isMutating` always false during the mutation.
+    //
+    // So we can't store `isMutating` in a state. Instead we use `useTransition` to track async
+    // function state. `isPending` is always urgent.
+    //
+    // But startTransition returns void instead of the promise, where ourselves can't track the
+    // state anymore.
+    // So we hoist promise variable and await twice, one for startTransition and one for the actual
+    // promise result
+    const [isMutating, startMutating] = useTransition();
 
     const trigger = useCallback(
       async (sdkArg: OriginalSdkArg<SdkMethod>) => {
         const mutationStartedAt = Date.now();
         ditchMutationsUntilRef.current = mutationStartedAt;
 
-        setState({
-          isMutating: true
-        });
-
         const serializedKey = stableHash([sdkMethod, sdkArg]);
 
+        const promise = sdkMethod({
+          client,
+          ...sdkArg,
+          // allows to be catched by SWR
+          throwOnError: true,
+          // https://github.com/hey-api/openapi-ts/issues/2319
+          //
+          // TLDR: currently Hey API's responseStyle setting is only runtime and
+          // not reflected in typescript types, so we just force it to 'fields' here
+          // to make sure the typescript types align with the runtime behavior
+          responseStyle: 'fields'
+        });
+
+        // we await promise to ensure React can track the promise status
+        startMutating(async () => {
+          try {
+            await promise;
+          } catch {
+            // ignore error in the transition
+          }
+        });
+
         try {
-          // return await here is required to make sure error can be catched and finally will be called
-          const result: Awaited<SDKRequestResult> = await sdkMethod({
-            client,
-            ...sdkArg,
-            // allows to be catched by SWR
-            throwOnError: true,
-            // https://github.com/hey-api/openapi-ts/issues/2319
-            //
-            // TLDR: currently Hey API's responseStyle setting is only runtime and
-            // not reflected in typescript types, so we just force it to 'fields' here
-            // to make sure the typescript types align with the runtime behavior
-            responseStyle: 'fields'
-          });
+          // here we actually await and get the result
+          const result: Awaited<SDKRequestResult> = await promise;
 
           if (ditchMutationsUntilRef.current <= mutationStartedAt) {
             startTransition(() => {
               setState({
                 data: result.data as SdkData<SdkMethod>,
-                isMutating: false,
                 error: undefined
               });
             });
@@ -178,8 +197,7 @@ export function tayori<
           if (ditchMutationsUntilRef.current <= mutationStartedAt) {
             startTransition(() => {
               setState({
-                error: e,
-                isMutating: false
+                error: e
               });
             });
 
@@ -198,8 +216,7 @@ export function tayori<
       ditchMutationsUntilRef.current = Date.now();
       setState({
         data: undefined,
-        error: undefined,
-        isMutating: false
+        error: undefined
       });
     }, [setState]);
 
@@ -214,10 +231,7 @@ export function tayori<
         stateDependenciesRef.current.error = true;
         return stateRef.current.error;
       },
-      get isMutating() {
-        stateDependenciesRef.current.isMutating = true;
-        return stateRef.current.isMutating;
-      }
+      isMutating
     } as const;
   }
 
