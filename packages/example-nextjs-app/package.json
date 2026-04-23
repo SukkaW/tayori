@@ -1,0 +1,28 @@
+{
+  "name": "example-nextjs-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "openapi-ts": "openapi-ts"
+  },
+  "dependencies": {
+    "foxts": "^5.4.0",
+    "ky": "^2.0.2",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "swr": "^2.4.1",
+    "tayori": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.96.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.4",
+    "@types/react-dom": "^19.2.3",
+    "babel-plugin-react-compiler": "^1.0.0"
+  }
+}

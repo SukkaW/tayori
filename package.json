@@ -1,54 +1,17 @@
 {
-  "name": "tayori",
-  "version": "0.1.0",
-  "description": "An opinionated React client-side data fetching stack built with Ky, SWR and Hey API",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.cjs"
-    },
-    "./package.json": "./package.json"
-  },
+  "name": "tayori-monorepo",
+  "private": true,
   "scripts": {
-    "build": "bunchee src/index.ts --minify --no-sourcemap",
-    "lint": "eslint --format=sukka ."
-  },
-  "keywords": [
-    "SWR",
-    "Hey API",
-    "React",
-    "OpenAPI",
-    "TypeScript"
-  ],
-  "author": "Sukka <https://skk.moe>",
-  "license": "MIT",
-  "dependencies": {
-    "foxact": "^0.3.0",
-    "stable-hash": "^0.0.6"
+    "build": "pnpm --filter tayori build",
+    "lint": "eslint --format=sukka .",
+    "dev": "pnpm --filter @tayori/example-nextjs dev"
   },
   "devDependencies": {
     "@eslint-sukka/react": "^8.9.3",
-    "@swc/core": "^1.15.30",
-    "@types/react": "^19.2.14",
-    "bunchee": "^6.10.0",
     "eslint": "^10.2.1",
     "eslint-config-sukka": "^8.9.3",
     "eslint-formatter-sukka": "^8.9.3",
-    "react": "^19.2.5",
-    "swr": "^2.4.1",
     "typescript": "^6.0.3"
   },
-  "peerDependencies": {
-    "react": ">=19.2.0",
-    "swr": "^2.4.0"
-  },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.2"
 }

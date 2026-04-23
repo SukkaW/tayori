@@ -241,7 +241,8 @@ export function tayori<
             // default method options
             client: sdkClient,
             ...sdkArg,
-            // allows to be caught by SWR
+            // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
+            // see https://github.com/hey-api/openapi-ts/pull/3814
             throwOnError: true,
             // https://github.com/hey-api/openapi-ts/issues/2319
             //
@@ -272,10 +273,11 @@ export function tayori<
       // They will be catched by the React Error Boundary
 
       throw swr.error;
-    } else */ if (isZodError(swr.error)) {
+    } else */
+      if (isZodError(swr.error)) {
         swr.error.cause ??= key;
       } else {
-        // How to add extra error information here?
+        // We might be able to add extra information here once we use throwOnError: false
       }
 
       return swr;

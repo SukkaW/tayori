@@ -1,6 +1,15 @@
 'use strict';
 
-module.exports = require('eslint-config-sukka').sukka({}, {
+module.exports = require('eslint-config-sukka').sukka({
+  ignores: {
+    customGlobs: [
+      './packages/example-nextjs-app/src/sdk/**/*'
+    ]
+  },
+  next: [
+    './packages/example-nextjs-app/**/*.{ts,tsx}'
+  ]
+}, {
   rules: {
     // library does not have react refresh
     'react-refresh/only-export-components': 'off',
