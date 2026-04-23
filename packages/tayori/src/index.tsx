@@ -1,6 +1,5 @@
 'use client';
 
-import { noSSR } from 'foxact/no-ssr';
 import { useStableHandler } from 'foxact/use-stable-handler-only-when-you-know-what-you-are-doing-or-you-will-be-fired';
 import { useStateWithDeps } from 'foxact/use-state-with-deps';
 import { createContext, startTransition, use, useCallback, useRef } from 'react';
@@ -11,6 +10,8 @@ import type { SWRConfiguration, Key as SWRKey, Middleware as SWRMiddleware, SWRR
 import useSWR, { SWRConfig, useSWRConfig } from 'swr';
 import { nullthrow } from 'foxact/nullthrow';
 import { useSingleton } from 'foxact/use-singleton';
+
+import type { ZodError } from 'zod';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this has to be any for TypeScript to proper infer type
 type GeneralSdkMethod = (arg: any) => any;
@@ -27,7 +28,7 @@ export type TayoriSdkArg<SdkMethod extends GeneralSdkMethod> = OriginalSdkArg<Sd
   cacheTags?: Array<`#${string}`>
 };
 
-type InternalSWRKey<SdkArg> = [GeneralSdkMethod, SdkArg, cacheTags: Array<`#${string}`> | undefined];
+type InternalSWRKey<SdkArg = any> = [GeneralSdkMethod, SdkArg, cacheTags: Array<`#${string}`> | undefined];
 
 // SWR doesn't export this type, so I just copy this from SWR impl
 type SWRConfigurationWithOptionalFallback<SWROptions> = SWROptions extends SWRConfiguration
@@ -80,10 +81,6 @@ export function tayori<
       | (() => TayoriSdkArg<SdkMethod> | null | undefined | 0 | false),
     config?: SWRConfigurationWithOptionalFallback<SWROptions>
   ) {
-    // Use foxact/no-ssr force opt-out any server-side rendering, opt-into client-side rendering
-    // TODO-SUKKA: a way to add warning about using Suspense boundary?
-    noSSR();
-
     let swrKey: InternalSWRKey<OriginalSdkArg<SdkMethod>> | (() => InternalSWRKey<OriginalSdkArg<SdkMethod>> | null) | null = null;
     if (sdkArg) {
       if (typeof sdkArg === 'function') {
@@ -263,21 +260,10 @@ export function tayori<
 
       const swr = useSWRNext(key, customFetcher ?? defaultFetcher, config);
 
-      // This needs to be synced with SWRConfig's onError logic
-      /* if (isHTTP401Error(swr.error)) {
-      needLogin(swr.error.message, 401);
-    } else if (isNeedLoginError(swr.error)) {
-      // needLogin invoked by sdk client directly (maybe missing auth token?) should be thrown directly
-      // zod error should be thrown directly as well.
-      //
-      // They will be catched by the React Error Boundary
-
-      throw swr.error;
-    } else */
       if (isZodError(swr.error)) {
-        swr.error.cause ??= key;
-      } else {
-        // We might be able to add extra information here once we use throwOnError: false
+        swr.error.cause ??= {
+          key
+        };
       }
 
       return swr;
@@ -317,10 +303,24 @@ function withKUseDataSwrKey<T extends SWRKey>(key: T): T & { [kUseDataSwrKey]: t
   }) as T & { [kUseDataSwrKey]: true };
 }
 
-function isInternalSWRKey(key: unknown): key is InternalSWRKey<any> {
+/**
+ * This is an internal function for distinguishing SWR requests is either from useData
+ * or other userland useSWR calls.
+ *
+ * If you also write your own SWR middleware, you can use this function to check if the SWR
+ * request is from tayori or not.
+ */
+export function isInternalSWRKey(key: unknown): key is InternalSWRKey {
   return !!(key && (typeof key === 'function' || Array.isArray(key)) && kUseDataSwrKey in key && key[kUseDataSwrKey]);
 }
 
-function isZodError(e: unknown): e is Error {
+/**
+ * This is an internal function for distinguishing Zod errors that came from Hey API
+ * client (by Hey API's request and response validation). This function uses duck typing.
+ *
+ * You can re-use this function as you wish, this might be useful when implementing your own
+ * error handling logic.
+ */
+export function isZodError(e: unknown): e is ZodError {
   return e != null && typeof e === 'object' && 'issues' in e && Array.isArray(e.issues);
 }

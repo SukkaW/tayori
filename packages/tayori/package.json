@@ -1,7 +1,7 @@
 {
   "name": "tayori",
   "version": "0.1.0",
-  "description": "An opinionated React client-side data fetching stack built with Ky, SWR and Hey API",
+  "description": "An opinionated React client-side data fetching stack built with Ky, SWR, Zod and Hey API",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -39,10 +39,12 @@
     "@types/react": "^19.2.14",
     "bunchee": "^6.10.0",
     "react": "^19.2.5",
-    "swr": "^2.4.1"
+    "swr": "^2.4.1",
+    "zod": "4.3.6"
   },
   "peerDependencies": {
     "react": ">=19.2.0",
-    "swr": "^2.4.0"
+    "swr": "^2.4.0",
+    "zod": "^4.0.0"
   }
 }
