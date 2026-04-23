@@ -1,6 +1,10 @@
 {
   "name": "tayori-monorepo",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SukkaW/tayori.git"
+  },
   "scripts": {
     "build": "pnpm --filter tayori build",
     "lint": "eslint --format=sukka .",
