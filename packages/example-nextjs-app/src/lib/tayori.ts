@@ -1,5 +1,5 @@
 import { tayori } from 'tayori';
-import { getAllData } from '@/sdk';
+import { getAllData, createPlanet } from '@/sdk';
 import type { Options } from '@/sdk';
 import type { RequestResult } from '@/sdk/client';
 
@@ -19,8 +19,11 @@ export function useGetAllPlanets() {
   return useData(
     getAllData,
     // all request options here are fully typed and have autocompletion!
-    {
-
-    }
+    { query: {} }
   );
+};
+
+// You can check out the usage of useMutation in the planet-form.tsx component
+export function useCreatePlanet() {
+  return useMutation(createPlanet);
 };

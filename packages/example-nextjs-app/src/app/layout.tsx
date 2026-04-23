@@ -4,8 +4,8 @@ import DataFetchingProvider from './contexts/data-fetching';
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: 'Tayori – Petstore Example',
-  description: 'Example app demonstrating tayori + Hey API + SWR'
+  title: 'Tayori – Planets Example',
+  description: 'Example app demonstrating tayori + Hey API + SWR with the Scalar Galaxy API'
 };
 
 export default function RootLayout({
