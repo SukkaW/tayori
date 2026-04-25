@@ -12,6 +12,7 @@ import { nullthrow } from 'foxact/nullthrow';
 import { useSingleton } from 'foxact/use-singleton';
 
 import type { ZodError } from 'zod';
+import type { Options as KyOptions } from 'ky';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this has to be any for TypeScript to proper infer type
 type GeneralSdkMethod = (arg: any) => any;
@@ -60,7 +61,7 @@ export interface TayoriProviderProps extends React.PropsWithChildren {
 
 // tayori is just a dummy function, its only purpose is to accept and carry the generic type parameters
 export function tayori<
-  SDKOptions extends { client?: unknown, meta?: unknown },
+  SDKOptions extends { client?: unknown, meta?: unknown, kyOptions?: unknown } = any,
   SDKRequestResult extends Promise<any> = Promise<{
     data: unknown,
     request: Request,
@@ -253,6 +254,10 @@ export function tayori<
             // default method options
             client: sdkClient,
             ...sdkArg,
+            kyOptions: {
+              ...(sdkArg.kyOptions as KyOptions | undefined),
+              throwHttpErrors: true
+            } satisfies KyOptions,
             // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
             // see https://github.com/hey-api/openapi-ts/pull/3814
             throwOnError: true,
