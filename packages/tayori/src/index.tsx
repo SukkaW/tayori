@@ -34,11 +34,14 @@ export type TayoriSdkArg<SdkMethod extends GeneralSdkMethod> = OriginalSdkArg<Sd
 type InternalSWRKey<SdkArg = unknown> = [GeneralSdkMethod, SdkArg, cacheTags: Array<`#${string}`> | undefined];
 
 // SWR doesn't export this type, so I just copy this from SWR impl
+// This types ensures that if user indeed provides the "fallbackData"
+// the "data" response will be non-nullable, vice versa, replicating
+// SWR's types and runtime behavior regarding "fallbackData"
 type SWRConfigurationWithOptionalFallback<SWROptions> = SWROptions extends SWRConfiguration
   & Required<Pick<SWRConfiguration, 'fallbackData'>>
   ? Omit<SWROptions, 'fallbackData'> & Pick<Partial<SWROptions>, 'fallbackData'>
   : SWROptions;
-
+// Similar to above but for SWRInfiniteConfiguration
 type SWRInfiniteConfigurationWithOptionalFallback<SWROptions> = SWROptions extends SWRInfiniteConfiguration
   & Required<Pick<SWRInfiniteConfiguration, 'fallbackData'>>
   ? Omit<SWROptions, 'fallbackData'> & Pick<Partial<SWROptions>, 'fallbackData'>
