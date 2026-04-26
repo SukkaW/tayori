@@ -16,18 +16,42 @@ import type { RequestResult } from 'path/to/hey-api-generated-sdk/client';
 
 export const {
   useData,
+  useInfinite,
   useMutation,
   TayoriProvider
 } = tayori<Options, RequestResult>();
 
-import { getData, updateData } from 'path/to/hey-api-generated-sdk';
+import { getData, getAllData, updateData } from 'path/to/hey-api-generated-sdk';
 
+// data fetching
 export function useGetData() {
-  return useData(sdkMethodGet, { /* request options */ });
+  return useData(getData, { /* request options */ });
 }
+const { data, error, isLoading } = useGetData();
+
+// mutation
 export function useUpdateData() {
-  return useMutation(sdkMethodUpdate);
+  return useMutation(updateData);
 }
+const { trigger, data, error, isMutating } = useUpdateData();
+// in your event handler
+await trigger({ /* request options */ });
+
+// infinite loading like "Load More" or cursor-based pagination
+export function useListData() {
+  return useInfinite(getAllData, (pageIndex, previousPageData) => {
+    if (previousPageData && !previousPageData.hasMore) return null;
+    const nextCursor = previousPageData?.meta?.nextCursor;
+    if (!nextCursor && pageIndex > 0) return null;
+
+    return {
+      /* request options */
+      query: { cursor: previousPageData?.meta?.nextCursor }
+    };
+  });
+}
+// `data` is an array of pages
+const { data: pages, size, setSize, isLoading } = useListData();
 
 // wrap <TayoriProvider /> around your app with your own provider.
 'use client';
@@ -43,15 +67,6 @@ export function RootProvider({ children }: React.PropsWithChildren) {
     </TayoriProvider>
   );
 }
-
-// in your component
-
-// data fetching
-const { data, error, isLoading } = useGetData();
-// mutation
-const { trigger, data, error, isMutating } = useUpdateData();
-// in your event handler
-await trigger({ /* request options */ });
 ```
 
 Full example can be found in the [example-nextjs-app](./packages/example-nextjs-app).
