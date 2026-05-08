@@ -326,11 +326,18 @@ Callback function when a remote mutation has been finished successfully. The `da
 
 Callback function when a remote mutation has thrown an error.
 
-### Fetching On Demand within an Event Handler
+> **Why can't I have access to other SWR options here?**
+>
+> Though the interface looks very similar to `useSWRMutation` from SWR, tayori's `useMutation` is not built on top of it, but rather a from-scratch implementation while trying to maintain a similar API. This is because:
+>
+> 1. As mentioned above, Hey API typically generates separate SDK methods for fetching and mutating data, thus `useMutation` and `useData` will never share the same SWR key, there is no point to build `useMutation` on top of `useSWRMutation`
+> 2. Due to a bug of `useSWRMutation` ([vercel/swr#4247](https://github.com/vercel/swr/issues/4247)), `isMutating` will never change to `true` when `trigger` is called within an React transition (e.g. `<form action />`'s `action` prop). You can find more details about the reason behind that in the issue thread. tayori, on the other hand, implements a workaround to make sure `isMutating` works as expected even within `<form action />`.
+
+### Fetching within an Event Handler
 
 In most cases, you should use `useData` for conditional data fetching, as demonstrated above.
 
-However, sometimes you might want to trigger a data fetch from an event handler (typically on a user interaction), and access the response data within the same event handler. In this case, you can also use `useMutation` for fetching data.
+However, sometimes you might want to trigger a data fetch from an event handler (typically on a user interaction), and also access the response data within the same event handler (where with `useData` the response data will only be available in the next render). In this case, you can also use `useMutation` for fetching data.
 
 ```tsx
 const { trigger, isMutating } = useMutation(getPlanetById);
@@ -349,7 +356,7 @@ const { trigger, isMutating } = useMutation(getPlanetById);
 />;
 ```
 
-Since `getPlanetById` is a GET request without side effects (changing data on the server), you may wanna cache the response for subsequent `useData` hooks. In this case, you can enable the `populateCache` option of `useMutation` to populate the cache with the response data.
+In this specific nit scenario, you may wanna cache the response for subsequent `useData` hooks (since `getPlanetById` is a GET request without side effects). By enabling the `populateCache` option of `useMutation`, you can populate the cache with the response data for subsequent `useData` hooks:
 
 ```tsx
 // you can pass `populateCache` to `useMutation`...
