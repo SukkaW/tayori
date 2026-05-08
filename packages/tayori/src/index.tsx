@@ -8,7 +8,7 @@ import { stableHash } from 'stable-hash';
 import type { SWRConfiguration, Key as SWRKey, Middleware as SWRMiddleware, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
 
-import useSWR, { mutate, SWRConfig, useSWRConfig } from 'swr';
+import useSWR, { mutate, SWRConfig, useSWRConfig, preload as swrPreload } from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import useSWRInfinite from 'swr/infinite';
 import { nullthrow } from 'foxact/nullthrow';
@@ -574,7 +574,51 @@ export function tayori<
     } as const;
   }
 
+  // ---------- Preloading ----------
+  function usePreload() {
+    const defaultFetcher = useDefaultSWRFetcher();
+
+    return function preload<SdkMethod extends GeneralSdkMethod>(sdkMethod: SdkMethod, sdkArg: TayoriSdkArg<SdkMethod>) {
+      const key = getSwrKeyFromSdkArg<SdkMethod, SDKOptions>(sdkMethod, sdkArg);
+      swrPreload(key, defaultFetcher);
+    };
+  }
+
   // ---------- SWR Middleware and SWRConfig Provider ----------
+  function useDefaultSWRFetcher() {
+    const sdkClient = useSdkClient();
+    return useCallback(
+      async (key: InternalSWRKey<SDKOptions>) => {
+        const [sdkMethod, sdkArg] = key;
+        const result: Awaited<SDKRequestResult> = await sdkMethod({
+          // default method options
+          client: sdkClient,
+          ...sdkArg,
+          kyOptions: {
+            ...(sdkArg.kyOptions as KyOptions | undefined),
+            throwHttpErrors: true
+          } satisfies KyOptions,
+          // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
+          // see https://github.com/hey-api/openapi-ts/pull/3814
+          throwOnError: true,
+          // https://github.com/hey-api/openapi-ts/issues/2319
+          //
+          // TLDR: currently Hey API's responseStyle setting is only runtime and
+          // not reflected in typescript types, so we just force it to 'fields' here
+          // to make sure the typescript types align with the runtime behavior
+          responseStyle: 'fields'
+        });
+
+        // Though we force responseStyle to 'fields' above to ensure the typescript types align with runtime behavior,
+        // We only really need the "data", so we only return it.
+        //
+        // We could return more fields in the future if needed, like response, request, etc.
+        return result.data;
+      },
+      [sdkClient]
+    );
+  }
+
   const fetchMiddleware: SWRMiddleware =
     (useSWRNext) => (key: SWRKey, customFetcher, config): SWRResponse => {
       if (!isInternalSWRKey(key)) {
@@ -582,39 +626,7 @@ export function tayori<
         return useSWRNext(key, customFetcher, config);
       }
 
-      const sdkClient = useSdkClient();
-
-      const defaultFetcher = useCallback(
-        async (key: InternalSWRKey<SDKOptions>) => {
-          const [sdkMethod, sdkArg] = key;
-          const result: Awaited<SDKRequestResult> = await sdkMethod({
-            // default method options
-            client: sdkClient,
-            ...sdkArg,
-            kyOptions: {
-              ...(sdkArg.kyOptions as KyOptions | undefined),
-              throwHttpErrors: true
-            } satisfies KyOptions,
-            // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
-            // see https://github.com/hey-api/openapi-ts/pull/3814
-            throwOnError: true,
-            // https://github.com/hey-api/openapi-ts/issues/2319
-            //
-            // TLDR: currently Hey API's responseStyle setting is only runtime and
-            // not reflected in typescript types, so we just force it to 'fields' here
-            // to make sure the typescript types align with the runtime behavior
-            responseStyle: 'fields'
-          });
-
-          // Though we force responseStyle to 'fields' above to ensure the typescript types align with runtime behavior,
-          // We only really need the "data", so we only return it.
-          //
-          // We could return more fields in the future if needed, like response, request, etc.
-          return result.data;
-        },
-        [sdkClient]
-      );
-
+      const defaultFetcher = useDefaultSWRFetcher();
       const swr = useSWRNext(key, customFetcher ?? defaultFetcher, config);
 
       if (isZodError(swr.error)) {
@@ -688,7 +700,7 @@ export function tayori<
     );
   }
 
-  return { useData, useDataImmutable, useInfinite, TayoriProvider, useMutation };
+  return { useData, usePreload, useDataImmutable, useInfinite, TayoriProvider, useMutation };
 }
 
 const kUseDataSwrKey = Symbol('tayori SWR key');
