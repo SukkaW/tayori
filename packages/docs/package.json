@@ -1,0 +1,21 @@
+{
+  "name": "docs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.40",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "babel-plugin-react-compiler": "1.0.0"
+  }
+}
