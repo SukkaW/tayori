@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
+import { CurrentYear } from 'foxact/current-year';
 
 const styles = stylex.create({
   root: {
@@ -42,11 +43,20 @@ export function Footer() {
   return (
     <footer {...stylex.props(styles.root)}>
       <p {...stylex.props(styles.text)}>
-        tayori &copy; 2025{' '}
-        <a href="https://github.com/SukkaW" target="_blank" rel="noopener noreferrer" {...stylex.props(styles.textLink)}>
+        tayori
+        {' '}
+        &copy;
+        {' '}
+        <CurrentYear defaultYear={2026} />
+        {' '}
+        {/* eslint-disable-next-line @eslint-react/dom-no-unsafe-target-blank -- my own website */}
+        <a href="https://skk.moe" target="_blank" {...stylex.props(styles.textLink)}>
           Sukka
-        </a>{' '}
-        · MIT
+        </a>
+        {' '}
+        ·
+        {' '}
+        MIT
       </p>
       <div {...stylex.props(styles.links)}>
         <a href="https://github.com/SukkaW/tayori" target="_blank" rel="noopener noreferrer" {...stylex.props(styles.link)}>GitHub</a>

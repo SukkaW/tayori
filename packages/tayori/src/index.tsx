@@ -15,7 +15,6 @@ import { nullthrow } from 'foxact/nullthrow';
 import { useSingleton } from 'foxact/use-singleton';
 
 import type { ZodError } from 'zod';
-import type { Options as KyOptions } from 'ky';
 import { noop } from 'foxact/noop';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this has to be any for TypeScript to proper infer type
@@ -129,7 +128,7 @@ export interface UseMutationOptions<Data = any, Error = any> {
  * ```
  */
 export function tayori<
-  SDKOptions extends { client?: unknown, meta?: unknown, kyOptions?: unknown } = any,
+  SDKOptions extends { client?: unknown } = any,
   SDKRequestResult extends Promise<any> = Promise<{
     data: unknown,
     request: Request,
@@ -590,14 +589,11 @@ export function tayori<
     return useCallback(
       async (key: InternalSWRKey<SDKOptions>) => {
         const [sdkMethod, sdkArg] = key;
-        const result: Awaited<SDKRequestResult> = await sdkMethod({
+
+        const options = {
           // default method options
           client: sdkClient,
           ...sdkArg,
-          kyOptions: {
-            ...(sdkArg.kyOptions as KyOptions | undefined),
-            throwHttpErrors: true
-          } satisfies KyOptions,
           // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
           // see https://github.com/hey-api/openapi-ts/pull/3814
           throwOnError: true,
@@ -607,7 +603,18 @@ export function tayori<
           // not reflected in typescript types, so we just force it to 'fields' here
           // to make sure the typescript types align with the runtime behavior
           responseStyle: 'fields'
-        });
+        };
+
+        // When using @hey-api/client-ky, ensure HTTPError is thrown
+        if (
+          'kyOptions' in options
+          && options.kyOptions
+          && typeof options.kyOptions === 'object'
+        ) {
+          (options.kyOptions as any).throwHttpErrors = true;
+        }
+
+        const result: Awaited<SDKRequestResult> = await sdkMethod(options);
 
         // Though we force responseStyle to 'fields' above to ensure the typescript types align with runtime behavior,
         // We only really need the "data", so we only return it.

@@ -3,13 +3,15 @@ import { Balancer } from 'react-wrap-balancer';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 
+import { dedent as ts } from 'ts-dedent';
+
 const styles = stylex.create({
   root: {
     paddingTop: 'clamp(32px,5vw,56px)',
     paddingRight: 'clamp(24px,5vw,72px)',
     paddingBottom: 'clamp(16px,2.5vw,28px)',
     paddingLeft: 'clamp(24px,5vw,72px)',
-    maxWidth: '1000px',
+    maxWidth: '1280px',
     marginInline: 'auto',
     textAlign: 'center'
   },
@@ -125,7 +127,7 @@ const styles = stylex.create({
   bento: {
     display: 'grid',
     gridTemplateColumns: {
-      default: '1fr 1fr 1fr',
+      default: '1fr 1fr 1fr 1fr 1fr 1fr',
       '@media (max-width: 640px)': '1fr 1fr',
       '@media (max-width: 400px)': '1fr'
     },
@@ -142,11 +144,15 @@ const styles = stylex.create({
     // borderColor: 'rgba(255, 255, 255, 0.06)',
     // minWidth: 0,
     overflow: 'hidden',
-    textAlign: 'left'
+    textAlign: 'left',
+    gridColumn: {
+      default: 'span 2',
+      '@media (max-width: 640px)': 'span 1'
+    }
   },
   bentoWide: {
     gridColumn: {
-      default: 'span 2',
+      default: 'span 3',
       '@media (max-width: 400px)': 'span 1'
     }
   },
@@ -180,45 +186,66 @@ const styles = stylex.create({
 const BENTO = [
   {
     id: 'use-data',
-    label: 'useData',
     wide: false,
-    code: `const { data, error, isLoading } =
-  useData(getUser, { query: { id } });
-// data is typed to SDK response shape`
+    code: ts`
+      const { data, error } = useData(
+        getAllPlanets,
+        {
+          query: { page: 1, per_page: 20 }
+        }
+      );
+    `.trim()
   },
   {
-    id: 'use-data-immutable',
-    label: 'useDataImmutable',
+    id: 'conditional',
     wide: false,
-    code: `// Fetch once — never revalidates
-const { data, isLoading } =
-  useDataImmutable(getConfig, {});`
+    code: ts`
+      const { data, error } = useData(
+        getAllPlanets,
+        searchQuery
+          ? { query: { q: searchQuery } }
+          : null
+      );
+    `.trim()
   },
   {
-    id: 'mutation-write',
-    label: 'useMutation · write',
+    id: 'function-arg',
+    label: 'useData · function arg',
     wide: false,
-    code: `const { trigger, isMutating } =
-  useMutation(deletePost);
-await trigger({ path: { id } });`
+    code: ts`
+      const { data } = useData(
+        getPlanetById,
+        () => (astronomer?.asteroidNamedAfter
+          ? { id: astronomer.asteroidNamedAfter }
+          : null)
+      );
+    `.trim()
   },
   {
     id: 'mutation-demand',
-    label: 'useMutation · on demand',
-    wide: false,
-    code: `// Lazy fetch — not triggered on mount
-const { trigger, data, isLoading } =
-  useMutation(searchUsers);
-await trigger({ query: { q } });`
+    label: 'useMutation',
+    wide: true,
+    code: ts`
+      const { trigger, isMutating } = useMutation(updatePlanet);
+
+      await trigger({
+        path: { planetId },
+        body: { name: nextName }
+      });
+    `.trim()
   },
   {
     id: 'use-infinite',
     label: 'useInfinite',
     wide: true,
-    code: `const { data: pages, size, setSize } =
-  useInfinite(listPosts, (i, prev) =>
-    prev?.hasMore ? { query: { cursor: prev.meta.nextCursor } } : null
-  );`
+    code: ts`
+      const { data, size, setSize } = useInfinite(
+        getAllPlanets,
+        (i, prev) => (prev?.nextCursor
+          ? { query: { cursor: prev.nextCursor, perPage: 20 } }
+          : null)
+      );
+    `.trim()
   }
 ];
 
