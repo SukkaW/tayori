@@ -1,26 +1,34 @@
-@import "tailwindcss";
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+.bento-card pre.shiki {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.bento-card pre.shiki code {
+  font-family: var(--font-jetbrains-mono), monospace !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.bento-card pre.shiki .line,
+.code-wrap pre.shiki .line {
+  display: block;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.code-wrap pre.shiki {
+  border-radius: 8px !important;
+  padding: 16px 20px !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  background: #161311 !important;
+  max-width: 100% !important;
+}
+
+.code-wrap pre.shiki code {
+  font-family: var(--font-jetbrains-mono), monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.72 !important;
 }

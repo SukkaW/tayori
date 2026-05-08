@@ -2,7 +2,8 @@
   "extends": "./tsconfig.base.json",
   "references": [
     { "path": "packages/tayori" },
-    { "path": "packages/example-nextjs-app" }
+    { "path": "packages/example-nextjs-app" },
+    { "path": "packages/docs" }
   ],
   "files": []
 }

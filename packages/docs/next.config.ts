@@ -1,9 +1,7 @@
-import type { NextConfig } from 'next';
+import { withStyleX } from 'stylex-webpack/next';
 
-const nextConfig: NextConfig = {
+export default withStyleX()({
   output: 'export',
   reactCompiler: true,
   reactStrictMode: true
-};
-
-export default nextConfig;
+});

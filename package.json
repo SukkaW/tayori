@@ -9,6 +9,8 @@
     "build": "pnpm --filter tayori build",
     "lint": "eslint --format=sukka .",
     "example:dev": "pnpm --filter example-nextjs-app dev",
+    "docs:dev": "pnpm --filter docs dev",
+    "docs:build": "pnpm --filter docs build",
     "prerelease": "pnpm run lint && pnpm run build",
     "release": "bumpp packages/tayori/package.json --install -r --commit \"release: %s\" --tag \"%s\""
   },
