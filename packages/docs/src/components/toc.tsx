@@ -7,11 +7,11 @@ import type { ToCTree } from 'foxmd';
 
 const styles = stylex.create({
   layout: {
-    maxWidth: '1040px',
+    maxWidth: '1280px',
     marginInline: 'auto',
     display: 'grid',
     gridTemplateColumns: {
-      default: '214px 1fr',
+      default: '300px 1fr',
       '@media (max-width: 880px)': '1fr'
     },
     paddingBlock: '0',
@@ -231,6 +231,8 @@ export function DocsSectionInner({ children, toc, tocIds }: DocsSectionInnerProp
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
+    // Normally it would be not ideal to create IntersectionObserver for each component
+    // but since we are an "SPA" anyway and tocIds will never change in production
     const els = tocIds.reduce<HTMLElement[]>((acc, id) => {
       const el = document.getElementById(id);
       if (el) acc.push(el);

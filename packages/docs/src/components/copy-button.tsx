@@ -2,6 +2,7 @@
 
 import { useClipboard } from 'foxact/use-clipboard';
 import * as stylex from '@stylexjs/stylex';
+import { useCallback } from 'react';
 
 const styles = stylex.create({
   button: {
@@ -38,14 +39,11 @@ const styles = stylex.create({
 
 export function CopyButton({ code }: { code: string }) {
   const { copy, copied } = useClipboard({ timeout: 1400 });
-  const handleCopy = () => {
-    void copy(code);
-  };
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={useCallback(() => copy(code), [copy, code])}
       {...stylex.props(styles.button, copied && styles.buttonOk)}
     >
       {copied ? '✓ copied' : 'copy'}
