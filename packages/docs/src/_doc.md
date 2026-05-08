@@ -16,30 +16,45 @@ yarn add tayori
 
 In your Hey API configuration file (`openapi-ts.config.ts`), modify a few settings:
 
+- Set `responseStyle` to `fields` in `@hey-api/sdk` plugin options
+- Enable `throwOnError` and `includeInEntry` in your chosen Hey API client plugin options (e.g. `@hey-api/client-ky`, `@hey-api/client-fetch`, etc.)
+
 ```ts
 import { defineConfig } from '@hey-api/openapi-ts';
 
 export default defineConfig({
-  input: { ... },
-  output: { ... },
+  // other options...
   plugins: [
     {
       name: '@hey-api/sdk',
-      validator: 'zod',
-      operations: { strategy: 'flat' },
-      includeInEntry: true
+      // ... other options
+      responseStyle: 'fields' // [!code highlight]
     },
     {
       name: '@hey-api/client-ky',
-      // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
-      // see https://github.com/hey-api/openapi-ts/pull/3814
-      throwOnError: true,
-      includeInEntry: true
+      // or any of your chosen Hey API client plugin
+      // ...other options
+      throwOnError: true, // [!code highlight]
+      includeInEntry: true // [!code highlight]
     },
-    {
-      enums: 'javascript',
-      name: '@hey-api/typescript'
-    }
+    // ...other plugins
   ]
 });
+```
+
+### Create `tayori` Instance
+
+```ts
+import { tayori } from 'tayori';
+
+import type { Options } from 'path/to/hey-api-generated-sdk';
+import type { RequestResult } from 'path/to/hey-api-generated-sdk';
+
+export const {
+  TayoriProvider,
+  useData,
+  useDataImmutable,
+  useInfinite,
+  useMutation
+} = tayori<Options, RequestResult>();
 ```

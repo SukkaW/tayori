@@ -1,4 +1,4 @@
-import { codeToHtml } from 'shiki';
+import { highlight } from '../lib/shiki';
 import { Balancer } from 'react-wrap-balancer';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
@@ -133,14 +133,14 @@ const styles = stylex.create({
     columnGap: 7
   },
   bentoCard: {
-    backgroundColor: '#161311',
-    borderRadius: 9,
-    paddingBlock: '14px',
-    paddingInline: '16px',
-    borderWidth: 1,
-    borderStyle: 'solid',
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    minWidth: 0,
+    // backgroundColor: '#161311',
+    // borderRadius: 9,
+    // paddingBlock: '14px',
+    // paddingInline: '16px',
+    // borderWidth: 1,
+    // borderStyle: 'solid',
+    // borderColor: 'rgba(255, 255, 255, 0.06)',
+    // minWidth: 0,
     overflow: 'hidden',
     textAlign: 'left'
   },
@@ -150,15 +150,16 @@ const styles = stylex.create({
       '@media (max-width: 400px)': 'span 1'
     }
   },
-  bentoLabel: {
-    fontFamily: 'var(--font-jetbrains-mono), monospace',
-    fontSize: 9.5,
-    fontWeight: 500,
-    color: '#0e7490',
-    letterSpacing: '0.07em',
-    marginBottom: 10,
-    opacity: 0.85
-  },
+  // bentoLabel: {
+  //   fontFamily: 'var(--font-jetbrains-mono), monospace',
+  //   fontSize: 9.5,
+  //   fontWeight: 500,
+  //   // color: '#0e7490',
+  //   color: '#b3a99e',
+  //   letterSpacing: '0.07em',
+  //   marginBottom: 10,
+  //   opacity: 0.85
+  // },
   scrollHint: {
     display: 'flex',
     alignItems: 'center',
@@ -234,7 +235,7 @@ const STACK_PILLS = [
 
 export async function Hero() {
   const highlighted = await Promise.all(
-    BENTO.map(({ code }) => codeToHtml(code.trim(), { lang: 'typescript', theme: 'one-dark-pro' }))
+    BENTO.map(({ code }) => highlight(code.trim()))
   );
 
   return (
@@ -297,16 +298,14 @@ export async function Hero() {
             <div
               key={c.id}
               {...stylexPropsWithClassName(stylex.props(styles.bentoCard, c.wide && styles.bentoWide), 'bento-card')}
-            >
-              <div {...stylex.props(styles.bentoLabel)}>{c.label}</div>
-              {/* eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- Shiki returns trusted highlighted HTML for static docs snippets. */}
-              <div dangerouslySetInnerHTML={{ __html: highlighted[i] }} />
-            </div>
+              // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- Shiki returns trusted highlighted HTML for static docs snippets.
+              dangerouslySetInnerHTML={{ __html: highlighted[i] }}
+            />
           ))}
         </div>
 
         <div {...stylex.props(styles.scrollHint)}>
-          <span>Scroll to explore the docs</span>
+          <span>Scroll down to explore the docs</span>
           <svg
             width="11"
             height="11"

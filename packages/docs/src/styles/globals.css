@@ -1,35 +1,74 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-.bento-card pre.shiki {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  background: transparent !important;
 }
 
-.bento-card pre.shiki code {
+.bento-card pre.shiki {
+  height: 100%; /* fit in grid */
+}
+
+.bento-card pre.shiki,
+.code-wrap pre.shiki {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  border-radius: 8px !important;
+  padding: 16px 20px !important;
+  /* white-space: pre; */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #2e3440 !important;
+}
+
+.bento-card pre.shiki code,
+.code-wrap pre.shiki code {
   font-family: var(--font-jetbrains-mono), monospace;
   font-size: 13px;
   line-height: 1.5;
+  min-width: 100%;
+  white-space: pre;
 }
 
 .bento-card pre.shiki .line,
 .code-wrap pre.shiki .line {
+  display: block;
   white-space: pre;
 }
 
-.code-wrap pre.shiki {
-  border-radius: 8px !important;
-  padding: 16px 20px !important;
-  overflow-x: auto !important;
-  white-space: pre !important;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: #161311 !important;
-  max-width: 100% !important;
+/* transformerNotationDiff */
+.code-wrap pre.shiki.has-diff .line:not(.diff) {
+  opacity: 0.65;
+  transition: opacity 0.2s;
+}
+.code-wrap pre.shiki.has-diff:hover .line:not(.diff) {
+  opacity: 1;
+}
+.code-wrap pre.shiki .line.diff {
+  margin: 0 -20px;
+  padding-inline: 20px;
+}
+.code-wrap pre.shiki .line.diff.add {
+  background-color: rgba(163, 190, 140, 0.18);
+  box-shadow: inset 2px 0 0 #a3be8c;
+}
+.code-wrap pre.shiki .line.diff.remove {
+  background-color: rgba(191, 97, 106, 0.18);
+  box-shadow: inset 2px 0 0 #bf616a;
+  opacity: 0.7;
 }
 
-.code-wrap pre.shiki code {
-  font-family: var(--font-jetbrains-mono), monospace ;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre;
+/* transformerNotationHighlight */
+.code-wrap pre.shiki .line.highlighted {
+  background-color: rgba(136, 192, 208, 0.12);
+  margin: 0 -20px;
+  padding-inline: 20px;
+  box-shadow: inset 2px 0 0 #88c0d0;
+}
+.code-wrap pre.shiki.has-highlighted .line:not(.highlighted) {
+  opacity: 0.65;
+  transition: opacity 0.2s;
+}
+.code-wrap pre.shiki.has-highlighted:hover .line:not(.highlighted) {
+  opacity: 1;
 }

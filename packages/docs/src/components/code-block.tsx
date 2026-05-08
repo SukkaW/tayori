@@ -1,8 +1,7 @@
-import { codeToHtml } from 'shiki';
-import { transformerNotationDiff, transformerNotationHighlight } from '@shikijs/transformers';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 
+import { highlight } from '../lib/shiki';
 import { CopyButton } from './copy-button';
 
 const styles = stylex.create({
@@ -19,14 +18,7 @@ export async function CodeBlock({ children, lang = 'typescript' }: {
   children: string,
   lang?: string
 }) {
-  const html = await codeToHtml(children.trim(), {
-    lang,
-    theme: 'one-dark-pro',
-    transformers: [
-      transformerNotationDiff(),
-      transformerNotationHighlight()
-    ]
-  });
+  const html = await highlight(children.trim(), lang);
 
   return (
     <div {...stylexPropsWithClassName(stylex.props(styles.wrap), 'code-wrap')}>

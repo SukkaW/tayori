@@ -13,7 +13,8 @@ export default defineConfig({
       name: '@hey-api/sdk',
       validator: 'zod',
       operations: { strategy: 'flat' },
-      includeInEntry: true
+      includeInEntry: true,
+      responseStyle: 'fields'
     },
     {
       name: '@hey-api/client-ky',
