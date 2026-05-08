@@ -4,7 +4,7 @@ import DataFetchingProvider from './contexts/data-fetching';
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: 'Tayori – Planets Example',
+  title: 'tayori – Planets Example',
   description: 'Example app demonstrating tayori + Hey API + SWR with the Scalar Galaxy API'
 };
 

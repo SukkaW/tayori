@@ -1,6 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 
 import { CodeBlock } from './code-block';
+import type { FoxmdRendererOptions } from 'foxmd';
 
 const styles = stylex.create({
   main: {
@@ -159,7 +160,7 @@ export function DocsMarkdownRoot({ children }: { children: React.ReactNode }) {
   return <div {...stylex.props(styles.main)}>{children}</div>;
 }
 
-export const docsMarkdownRendererOptions = {
+export const docsMarkdownRendererOptions: FoxmdRendererOptions = {
   suppressHydrationWarning: false,
   customRenderMethods: {
     code(reactKey: string, code: string, lang?: string) {
@@ -179,20 +180,28 @@ export const docsMarkdownRendererOptions = {
           {text}
         </a>
       );
+    },
+    paragraph(reactKey: string, children: React.ReactNode) {
+      return <p key={reactKey} {...stylex.props(styles.paragraph)}>{children}</p>;
+    },
+    strong(reactKey: string, children: React.ReactNode) {
+      return <strong key={reactKey} {...stylex.props(styles.strong)}>{children}</strong>;
+    },
+    blockquote(reactKey: string, children: React.ReactNode) {
+      return <blockquote key={reactKey} {...stylex.props(styles.callout)}>{children}</blockquote>;
+    },
+    table(reactKey: string, children: React.ReactNode) {
+      return <table key={reactKey} {...stylex.props(styles.table)}>{children}</table>;
     }
   },
   customReactComponentsForHtmlTags: {
     h2: (props: React.ComponentProps<'h2'>) => <h2 {...props} {...stylex.props(styles.h2)} />,
     h3: (props: React.ComponentProps<'h3'>) => <h3 {...props} {...stylex.props(styles.h3)} />,
-    p: (props: React.ComponentProps<'p'>) => <p {...props} {...stylex.props(styles.paragraph)} />,
-    strong: (props: React.ComponentProps<'strong'>) => <strong {...props} {...stylex.props(styles.strong)} />,
-    blockquote: (props: React.ComponentProps<'blockquote'>) => <blockquote {...props} {...stylex.props(styles.callout)} />,
     ul: (props: React.ComponentProps<'ul'>) => <ul {...props} {...stylex.props(styles.list)} />,
     ol: (props: React.ComponentProps<'ol'>) => <ol {...props} {...stylex.props(styles.list)} />,
     li: (props: React.ComponentProps<'li'>) => <li {...props} {...stylex.props(styles.listItem)} />,
-    table: (props: React.ComponentProps<'table'>) => <table {...props} {...stylex.props(styles.table)} />,
     th: (props: React.ComponentProps<'th'>) => <th {...props} {...stylex.props(styles.tableHeadCell)} />,
     td: (props: React.ComponentProps<'td'>) => <td {...props} {...stylex.props(styles.tableCell)} />
   },
   UNSAFE_allowHtml: true
-} as const;
+};

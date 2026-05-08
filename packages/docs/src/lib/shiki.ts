@@ -1,11 +1,10 @@
 import { codeToHtml } from 'shiki';
-import { transformerNotationDiff, transformerNotationHighlight, transformerRemoveLineBreak } from '@shikijs/transformers';
+import { transformerNotationDiff, transformerNotationHighlight } from '@shikijs/transformers';
 
 const SHIKI_THEME = 'nord';
 const SHIKI_TRANSFORMERS = [
   transformerNotationDiff(),
-  transformerNotationHighlight(),
-  transformerRemoveLineBreak()
+  transformerNotationHighlight()
 ];
 
 export function highlight(code: string, lang = 'tsx') {

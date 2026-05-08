@@ -26,13 +26,13 @@
   font-family: var(--font-jetbrains-mono), monospace;
   font-size: 13px;
   line-height: 1.5;
+  display: inline-block;
   min-width: 100%;
   white-space: pre;
 }
 
 .bento-card pre.shiki .line,
 .code-wrap pre.shiki .line {
-  display: block;
   white-space: pre;
 }
 
@@ -45,6 +45,8 @@
   opacity: 1;
 }
 .code-wrap pre.shiki .line.diff {
+  display: inline-block;
+  width: calc(100% + 40px);
   margin: 0 -20px;
   padding-inline: 20px;
 }
@@ -61,14 +63,16 @@
 /* transformerNotationHighlight */
 .code-wrap pre.shiki .line.highlighted {
   background-color: rgba(136, 192, 208, 0.12);
+  display: inline-block;
+  width: calc(100% + 40px);
   margin: 0 -20px;
   padding-inline: 20px;
   box-shadow: inset 2px 0 0 #88c0d0;
 }
-.code-wrap pre.shiki.has-highlighted .line:not(.highlighted) {
+/* .code-wrap pre.shiki.has-highlighted .line:not(.highlighted) {
   opacity: 0.65;
   transition: opacity 0.2s;
 }
 .code-wrap pre.shiki.has-highlighted:hover .line:not(.highlighted) {
   opacity: 1;
-}
+} */
