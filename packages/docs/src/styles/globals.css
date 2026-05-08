@@ -1,20 +1,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 .bento-card pre.shiki {
-  margin: 0 !important;
-  padding: 0 !important;
+  margin: 0;
+  padding: 0;
   background: transparent !important;
 }
 
 .bento-card pre.shiki code {
-  font-family: var(--font-jetbrains-mono), monospace !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .bento-card pre.shiki .line,
 .code-wrap pre.shiki .line {
-  display: block;
+  white-space: pre;
 }
 
 .code-wrap pre.shiki {
@@ -22,13 +22,14 @@
   padding: 16px 20px !important;
   overflow-x: auto !important;
   white-space: pre !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
   background: #161311 !important;
   max-width: 100% !important;
 }
 
 .code-wrap pre.shiki code {
-  font-family: var(--font-jetbrains-mono), monospace !important;
-  font-size: 12.5px !important;
-  line-height: 1.72 !important;
+  font-family: var(--font-jetbrains-mono), monospace ;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
 }

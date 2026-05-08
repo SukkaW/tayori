@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { Drawer } from 'vaul';
 import * as stylex from '@stylexjs/stylex';
+import type { ToCTree } from 'foxmd';
 
 const styles = stylex.create({
   layout: {
@@ -168,32 +169,70 @@ const styles = stylex.create({
   }
 });
 
-const TOC_ITEMS = [
-  { id: 'intro', label: 'Introduction', d: 1 },
-  { id: 'getting-started', label: 'Getting Started', d: 1 },
-  { id: 'gs-install', label: 'Installation', d: 2 },
-  { id: 'gs-heyapi', label: 'Generate the SDK', d: 2 },
-  { id: 'gs-setup', label: 'Create instance', d: 2 },
-  { id: 'gs-provider', label: 'Add the provider', d: 2 },
-  { id: 'gs-hook', label: 'First hook', d: 2 },
-  { id: 'api', label: 'API Reference', d: 1 },
-  { id: 'use-data', label: 'useData()', d: 2 },
-  { id: 'use-data-imm', label: 'useDataImmutable()', d: 2 },
-  { id: 'use-mutation', label: 'useMutation()', d: 2 },
-  { id: 'use-infinite', label: 'useInfinite()', d: 2 },
-  { id: 'provider', label: 'TayoriProvider', d: 2 },
-  { id: 'typescript', label: 'TypeScript', d: 1 },
-  { id: 'hey-api', label: 'Hey API', d: 1 },
-  { id: 'ssr', label: 'Server-Side Rendering', d: 1 }
-] as const;
+const TOC_KEYS = new Set(['id', 'index', 'text']);
 
-export function DocsSectionInner({ children }: { children: React.ReactNode }) {
-  const [active, setActive] = useState('intro');
+interface ToCItemProps {
+  toc: ToCTree,
+  active: string,
+  isChild?: boolean,
+  isSheet?: boolean,
+  onLinkClick?: () => void
+}
+
+function ToCItem({ toc, active, isChild, isSheet, onLinkClick }: ToCItemProps) {
+  const childKeys = useMemo(
+    () => Object.keys(toc).reduce<string[]>((acc, key) => {
+      if (!TOC_KEYS.has(key) && typeof toc[key] === 'object') acc.push(key);
+      return acc;
+    }, []).sort((a, b) => Number(a) - Number(b)),
+    [toc]
+  );
+
+  return (
+    <>
+      <a
+        href={`#${toc.id}`}
+        onClick={onLinkClick}
+        {...stylex.props(
+          styles.link,
+          isSheet && styles.sheetLinkSpacing,
+          isChild && styles.linkDepth2,
+          active === toc.id && styles.linkActive,
+          isChild && active === toc.id && styles.linkDepth2Active
+        )}
+      >
+        {toc.text}
+      </a>
+      {childKeys.map(key => (
+        <ToCItem
+          key={(toc[key]).id}
+          toc={toc[key]}
+          active={active}
+          isChild
+          isSheet={isSheet}
+          onLinkClick={onLinkClick}
+        />
+      ))}
+    </>
+  );
+}
+
+interface DocsSectionInnerProps {
+  children: React.ReactNode,
+  toc: ToCTree,
+  tocIds: string[]
+}
+
+export function DocsSectionInner({ children, toc, tocIds }: DocsSectionInnerProps) {
+  const tocItems = Object.keys(toc)
+    .map(key => toc[key]);
+
+  const [active, setActive] = useState(tocIds[0] ?? '');
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const els = TOC_ITEMS.reduce<HTMLElement[]>((acc, t) => {
-      const el = document.getElementById(t.id);
+    const els = tocIds.reduce<HTMLElement[]>((acc, id) => {
+      const el = document.getElementById(id);
       if (el) acc.push(el);
       return acc;
     }, []);
@@ -206,27 +245,17 @@ export function DocsSectionInner({ children }: { children: React.ReactNode }) {
     );
     els.forEach(el => obs.observe(el));
     return () => obs.disconnect();
-  }, []);
+  }, [tocIds]);
 
   return (
     <>
       <div {...stylex.props(styles.layout)}>
         <nav aria-label="Table of contents" {...stylex.props(styles.nav, styles.layoutChild)}>
           <div {...stylex.props(styles.heading)}>On this page</div>
-          {TOC_ITEMS.map((t, i) => (
+          {tocItems.map((t, i) => (
             <Fragment key={t.id}>
-              {t.d === 1 && i > 0 && <div {...stylex.props(styles.separator)} />}
-              <a
-                href={`#${t.id}`}
-                {...stylex.props(
-                  styles.link,
-                  t.d === 2 && styles.linkDepth2,
-                  active === t.id && styles.linkActive,
-                  t.d === 2 && active === t.id && styles.linkDepth2Active
-                )}
-              >
-                {t.label}
-              </a>
+              {i > 0 && <div {...stylex.props(styles.separator)} />}
+              <ToCItem toc={t} active={active} />
             </Fragment>
           ))}
         </nav>
@@ -253,21 +282,14 @@ export function DocsSectionInner({ children }: { children: React.ReactNode }) {
           <Drawer.Content {...stylex.props(styles.sheet)}>
             <div {...stylex.props(styles.sheetHandle)} />
             <Drawer.Title {...stylex.props(styles.heading)}>On this page</Drawer.Title>
-            {TOC_ITEMS.map(t => (
-              <a
+            {tocItems.map(t => (
+              <ToCItem
                 key={t.id}
-                href={`#${t.id}`}
-                onClick={() => setMobileOpen(false)}
-                {...stylex.props(
-                  styles.link,
-                  styles.sheetLinkSpacing,
-                  t.d === 2 && styles.linkDepth2,
-                  active === t.id && styles.linkActive,
-                  t.d === 2 && active === t.id && styles.linkDepth2Active
-                )}
-              >
-                {t.label}
-              </a>
+                toc={t}
+                active={active}
+                isSheet
+                onLinkClick={() => setMobileOpen(false)}
+              />
             ))}
           </Drawer.Content>
         </Drawer.Portal>

@@ -1,4 +1,5 @@
 import { codeToHtml } from 'shiki';
+import { transformerNotationDiff, transformerNotationHighlight } from '@shikijs/transformers';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 
@@ -20,7 +21,11 @@ export async function CodeBlock({ children, lang = 'typescript' }: {
 }) {
   const html = await codeToHtml(children.trim(), {
     lang,
-    theme: 'one-dark-pro'
+    theme: 'one-dark-pro',
+    transformers: [
+      transformerNotationDiff(),
+      transformerNotationHighlight()
+    ]
   });
 
   return (

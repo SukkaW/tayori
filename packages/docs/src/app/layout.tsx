@@ -3,7 +3,7 @@ import { Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 
-import './globals.css';
+import '@/styles/globals.css';
 import 'stylex-webpack/stylex.css';
 
 const styles = stylex.create({
