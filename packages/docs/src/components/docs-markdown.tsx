@@ -2,6 +2,8 @@ import * as stylex from '@stylexjs/stylex';
 
 import { CodeBlock } from './code-block';
 import type { FoxmdRendererOptions } from 'foxmd';
+import type { WithXStyleProps } from 'stylex-webpack/utils';
+import type React from 'react';
 
 const styles = stylex.create({
   main: {
@@ -59,7 +61,10 @@ const styles = stylex.create({
     lineHeight: 1.78,
     color: '#6a7282',
     marginBottom: 12,
-    overflowWrap: 'anywhere'
+    overflowWrap: 'anywhere',
+    ':last-child': {
+      marginBottom: 0
+    }
   },
   strong: {
     color: '#1c1915',
@@ -110,7 +115,10 @@ const styles = stylex.create({
     marginLeft: '20px',
     fontSize: 14.5,
     color: '#6a7282',
-    lineHeight: 1.72
+    lineHeight: 1.72,
+    ':last-child': {
+      marginBottom: 0
+    }
   },
   listItem: {
     marginBottom: 4
@@ -160,6 +168,10 @@ export function DocsMarkdownRoot({ children }: { children: React.ReactNode }) {
   return <div {...stylex.props(styles.main)}>{children}</div>;
 }
 
+export const Paragraph = (props: WithXStyleProps<React.ComponentProps<'p'>>) => <p {...props} {...stylex.props(styles.paragraph)} />;
+export const Anchor = (props: WithXStyleProps<React.ComponentProps<'a'>>) => <a {...props} {...stylex.props(styles.link)} />;
+export const Blockquote = (props: WithXStyleProps<React.ComponentProps<'blockquote'>>) => <blockquote {...props} {...stylex.props(styles.callout)} />;
+
 export const docsMarkdownRendererOptions: FoxmdRendererOptions = {
   suppressHydrationWarning: false,
   customRenderMethods: {
@@ -171,24 +183,23 @@ export const docsMarkdownRendererOptions: FoxmdRendererOptions = {
     },
     link(reactKey: string, href: string, text: React.ReactNode, title?: string) {
       return (
-        <a
+        <Anchor
           key={reactKey}
           href={filterLinkHref(href)}
           title={title}
-          {...stylex.props(styles.link)}
         >
           {text}
-        </a>
+        </Anchor>
       );
     },
     paragraph(reactKey: string, children: React.ReactNode) {
-      return <p key={reactKey} {...stylex.props(styles.paragraph)}>{children}</p>;
+      return <Paragraph key={reactKey}>{children}</Paragraph>;
     },
     strong(reactKey: string, children: React.ReactNode) {
       return <strong key={reactKey} {...stylex.props(styles.strong)}>{children}</strong>;
     },
     blockquote(reactKey: string, children: React.ReactNode) {
-      return <blockquote key={reactKey} {...stylex.props(styles.callout)}>{children}</blockquote>;
+      return <Blockquote key={reactKey}>{children}</Blockquote>;
     },
     table(reactKey: string, children: React.ReactNode) {
       return <table key={reactKey} {...stylex.props(styles.table)}>{children}</table>;

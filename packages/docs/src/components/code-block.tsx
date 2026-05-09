@@ -10,7 +10,10 @@ const styles = stylex.create({
     marginBlock: '14px',
     marginInline: '0',
     minWidth: 0,
-    maxWidth: '100%'
+    maxWidth: '100%',
+    ':last-child': {
+      marginBottom: 0
+    }
   }
 });
 

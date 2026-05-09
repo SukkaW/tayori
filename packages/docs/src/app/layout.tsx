@@ -32,13 +32,69 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains-mono'
 });
 
+const SITE_URL = 'https://tayori.skk.moe';
+const SITE_TITLE = 'tayori — React data fetching stack (made by Sukka)';
+const SITE_DESCRIPTION = 'An opinionated React client-side data fetching stack built on top of SWR and Hey API';
+
 export const metadata: Metadata = {
-  title: 'tayori — React data fetching stack',
-  description:
-    'A typed client-side stack built on SWR and Hey API. Composable, SSR-ready, and thin enough to understand in an afternoon.'
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  keywords: [
+    'tayori',
+    'SWR',
+    'Hey API',
+    'React',
+    'Next.js',
+    'TypeScript',
+    'OpenAPI',
+    'data fetching',
+    'client-side data fetching',
+    'typed API client',
+    'data fetching hooks'
+  ],
+  authors: [{ name: 'Sukka', url: 'https://skk.moe' }],
+  creator: 'Sukka',
+  publisher: 'Sukka',
+  alternates: {
+    canonical: '/',
+    types: {
+      'text/markdown': '/llms-full.txt'
+    }
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: SITE_URL,
+    siteName: 'tayori',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    creator: '@isukkaw'
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-snippet': -1,
+      'max-image-preview': 'large',
+      'max-video-preview': -1
+    }
+  },
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false
+  }
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: React.PropsWithChildren) {
   return (
     <html
       lang="en"

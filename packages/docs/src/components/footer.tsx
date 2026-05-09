@@ -59,6 +59,7 @@ export function Footer() {
         MIT
       </p>
       <div {...stylex.props(styles.links)}>
+        <a href="/llms-full.txt" {...stylex.props(styles.link)}>llms-full.txt</a>
         <a href="https://github.com/SukkaW/tayori" target="_blank" rel="noopener noreferrer" {...stylex.props(styles.link)}>GitHub</a>
         <a href="https://github.com/SukkaW/tayori/issues" target="_blank" rel="noopener noreferrer" {...stylex.props(styles.link)}>Issues</a>
         <a href="https://github.com/SukkaW/tayori/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" {...stylex.props(styles.link)}>License</a>
