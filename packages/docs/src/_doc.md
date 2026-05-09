@@ -129,10 +129,12 @@ app/
 ## Data Fetching
 
 ```tsx
-import { useData } from './lib/tayori';
+import { useData, usePreload } from './lib/tayori';
 import { getAllPlanets } from 'path/to/hey-api-generated-sdk';
 
-const { data, error, isLoading, preload, mutate } = useData(
+const preload = usePreload(getAllPlanets);
+
+const { data, error, isLoading, mutate } = useData(
   getAllPlanets,
   {
     // Hey API request options, with type safety and IDE autocompletion!
@@ -160,7 +162,7 @@ export const useAllPlanets = (pageIndex?: number, perPage?: number) => {
 
 > **DO NOT spread the return value of `useData`!**
 >
-> `useData` uses a re-redender reduction optimization technique, that can track if you have accessed specific fields, and only re-render when actually used fields change.
+> `useData` uses a re-render reduction optimization technique, that can track if you have accessed specific fields, and only re-render when actually used fields change.
 >
 > Spreading the return value of `useData` will break this optimization and cause unnecessary re-renders.
 >
@@ -271,7 +273,7 @@ const { data, error, isLoading } = useDataImmutable(getAllPlanets, {
 });
 ```
 
-`useDataImmutable` has the same interface as `useData`. nder the hood, `useDataImmutable` is built on top of SWR's `useSWRImmutable`.
+`useDataImmutable` has the same interface as `useData`. Under the hood, `useDataImmutable` is built on top of SWR's `useSWRImmutable`.
 
 ## Mutation
 

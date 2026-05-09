@@ -6,7 +6,7 @@ The documentation can be found at [https://tayori.skk.moe](https://tayori.skk.mo
 
 The LLM friendly version of the documentation can be found at [https://tayori.skk.moe/llms-full.txt](https://tayori.skk.moe/llms-full.txt).
 
-Usage example can be found in the [example-nextjs-app](./packages/example-nextjs-app).
+Usage example can be found in the [example-nextjs-app](../example-nextjs-app).
 
 ----
 
