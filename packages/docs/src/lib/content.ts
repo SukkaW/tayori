@@ -7,6 +7,8 @@ import { docsMarkdownRendererOptions } from '../components/docs-markdown';
 // eslint-disable-next-line import-x/no-webpack-loader-syntax, import-x/no-unresolved -- intentional usage
 import CONTENT from '!!raw-loader!@/_doc.md';
 
+export const getRawContent = () => CONTENT;
+
 export const getContent = cache(function getContent() {
   const { jsx, toc: tocObj } = foxmd(CONTENT, {
     foxmdRendererOptions: {

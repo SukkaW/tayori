@@ -110,11 +110,13 @@ const styles = stylex.create({
     width: 46,
     height: 46,
     borderRadius: '50%',
-    backgroundColor: {
-      default: '#1c1915',
-      ':hover': '#2e2a26'
-    },
+    backgroundColor: '#0e7490',
     color: '#fff',
+    borderColor: '#0e7490',
+    opacity: {
+      default: 1,
+      ':hover': 0.88
+    },
     borderWidth: 0,
     cursor: 'pointer',
     alignItems: 'center',
@@ -281,8 +283,8 @@ export function DocsSectionInner({ children, toc, tocIds }: DocsSectionInnerProp
 
         <Drawer.Portal>
           <Drawer.Overlay {...stylex.props(styles.overlay)} />
-          <Drawer.Content {...stylex.props(styles.sheet)}>
-            <div {...stylex.props(styles.sheetHandle)} />
+          <Drawer.Content {...stylex.props(styles.sheet)} data-vaul-custom-container>
+            <div aria-hidden {...stylex.props(styles.sheetHandle)} />
             <Drawer.Title {...stylex.props(styles.heading)}>On this page</Drawer.Title>
             {tocItems.map(t => (
               <ToCItem

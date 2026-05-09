@@ -1,7 +1,3 @@
-<!-- ## Introduction
-
-**tayori** (便り, news from afar) composites SWR and Hey API into a minimal, type-safe React data-fetching stack. -->
-
 ## Getting Started
 
 ### Installation
