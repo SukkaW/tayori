@@ -14,7 +14,6 @@ import useSWRInfinite from 'swr/infinite';
 import { nullthrow } from 'foxact/nullthrow';
 import { useSingleton } from 'foxact/use-singleton';
 
-import type { ZodError } from 'zod';
 import { noop } from 'foxact/noop';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this has to be any for TypeScript to proper infer type
@@ -528,15 +527,8 @@ export function tayori<
       }
 
       const defaultFetcher = useDefaultSWRFetcher();
-      const swr = useSWRNext(key, customFetcher ?? defaultFetcher, config);
 
-      if (isZodError(swr.error)) {
-        swr.error.cause ??= {
-          key
-        };
-      }
-
-      return swr;
+      return useSWRNext(key, customFetcher ?? defaultFetcher, config);
     };
 
   // ---------- SDK Client Context and Provider ----------
@@ -742,17 +734,6 @@ export function isInternalSWRKey(key: unknown): key is InternalSWRKey {
   return !!(key && (typeof key === 'function' || Array.isArray(key)) && kUseDataSwrKey in key && key[kUseDataSwrKey]);
 }
 
-/**
- * This is an internal function for distinguishing Zod errors that came from Hey API
- * client (by Hey API's request and response validation). This function uses duck typing.
- *
- * You can re-use this function as you wish, this might be useful when implementing your own
- * error handling logic.
- */
-export function isZodError(e: unknown): e is ZodError {
-  return e != null && typeof e === 'object' && 'issues' in e && Array.isArray(e.issues);
-}
-
 function mutateWithTags(cacheTags: Array<`#${string}`>) {
   return mutate((key) => {
     if (!isInternalSWRKey(key)) {
@@ -767,3 +748,5 @@ function mutateWithTags(cacheTags: Array<`#${string}`>) {
 }
 
 export { mutateWithTags as unstable_mutateWithTags };
+
+export { isZodError } from './_is-zod-error';
