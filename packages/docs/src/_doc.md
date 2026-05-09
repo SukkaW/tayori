@@ -287,7 +287,7 @@ import { createPlanet } from 'path/to/hey-api-generated-sdk';
 
 function PlanetCreationForm() {
   const { mutate: mutateAllPlanets } = useGetAllPlanets();
-  const { trigger, data, error, isMutating } = useMutation(
+  const { trigger, data, error, isMutating, reset } = useMutation(
     createPlanet,
     {/* optional mutation options */}
   );

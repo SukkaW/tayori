@@ -34,7 +34,7 @@ const styles = stylex.create({
     marginTop: 10,
     fontSize: 16,
     lineHeight: 1,
-    color: '#6a7282',
+    color: '#90a1b9',
     letterSpacing: '0.01em'
   },
   taglineJp: {
@@ -78,7 +78,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: {
       default: '#e5e0d8',
-      ':hover': '#6a7282'
+      ':hover': '#90a1b9'
     },
     backgroundColor: '#ffffff',
     color: {
@@ -161,7 +161,7 @@ const styles = stylex.create({
   //   fontSize: 9.5,
   //   fontWeight: 500,
   //   // color: '#0e7490',
-  //   color: '#6a7282',
+  //   color: '#90a1b9',
   //   letterSpacing: '0.07em',
   //   marginBottom: 10,
   //   opacity: 0.85
@@ -174,7 +174,7 @@ const styles = stylex.create({
     justifyContent: 'center',
     marginTop: 18,
     fontSize: 12,
-    color: '#6a7282',
+    color: '#90a1b9',
     letterSpacing: '0.05em',
     textTransform: 'uppercase'
   },

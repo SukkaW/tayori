@@ -57,16 +57,15 @@ interface HeyAPIClientLike {
 
 export interface TayoriProviderProps extends React.PropsWithChildren {
   /**
-     * @example
-     *
-     * ```
-     * initClient: () => createClient({
-     *   throwOnError: true,
-     *   credentials: 'include',
-     *   kyOptions: {}
-     * })
-     * ```
-     */
+   * @example
+   *
+   * ```
+   * initClient: () => createClient({
+   *   throwOnError: true,
+   *   auth() { return getAccessTokenSilently() },
+   * })
+   * ```
+   */
   initClient: () => HeyAPIClientLike
 }
 
@@ -104,13 +103,7 @@ export interface UseMutationOptions<Data = any, Error = any> {
 }
 
 /**
- * Right now, tayori() is a a dummy function that simply returns an object with React hooks and components.
- *
- * The main purpose of tayori() is to accept and carry the generic type parameters that are used across
- * the hooks and components.
- *
- * tayori() does not accept any runtime parameters for the time being. Those should be passed to
- * TayoriProvider, where you can also inject parameters from within React tree, which is more flexible.
+ * @see https://tayori.skk.moe
  *
  * @example
  *
@@ -136,42 +129,6 @@ export function tayori<
   }>
 >() {
   // ---------- useData ----------
-  /**
-   * You should avoid using `useData()` directly in your codebase.
-   * Instead, we recommend that you wrap your own hooks on top of `useData()` to abstract away,
-   * and share SWR options across your app.
-   *
-   * @example
-   *
-   * ```ts
-   * import { getData } from 'path/to/hey-api-generated-sdk';
-   *
-   * // You should do this first
-   * function useGetData(search) { return useData(getData, { query: { search } }); }
-   * // And only use wrapped hooks in your app.
-   * ```
-   *
-   * When wrapping your own hooks on top of `useData()`, DO NOT spread the `useData()`'s return value
-   * like `{ ...useData(...) }`, you are breaking tayori and SWR's re-render reduction optimization
-   * (which is built on top of the getter). Instead, return `useData(...)` directly from your wrapper hook
-   *
-   * Here is how you can use `useData()`
-   *
-   * ```ts
-   * useData(getData, {});
-   * useData(getData, { query: {}, body: 'hey api request options goes here' });
-   *
-   * // use falsy value to pause the request
-   * useData(getData, null);
-   *
-   * // you can pass sdkArg as an function that will return a sdkArg
-   * // when this function throw or return a falsy value, the request will be paused
-   * useData(getData, () => ({ query: {}, body: 'hey api request options goes here' }));
-   *
-   * // You can pass SWR options as the third argument
-   * useData(getData, { query: {} }, { revalidateOnFocus: false });
-   * ```
-   */
   function useData<
     SdkMethod extends GeneralSdkMethod,
     SWROptions extends SWRConfiguration<SdkData<SdkMethod>> = SWRConfiguration<SdkData<SdkMethod>>
@@ -192,10 +149,6 @@ export function tayori<
   }
 
   // ---------- useDataImmutable ----------
-  /**
-   * Similar to useData, but it uses useSWRImmutable internally, which means the data will
-   * never be revalidated or updated after the first fetch.
-   */
   function useDataImmutable<
     SdkMethod extends GeneralSdkMethod,
     SWROptions extends SWRConfiguration<SdkData<SdkMethod>> = SWRConfiguration<SdkData<SdkMethod>>
@@ -217,10 +170,7 @@ export function tayori<
 
   // ---------- useInfinite ----------
   /**
-   * Similar to useData, but it uses useSWRInfinite internally, which means it's designed for infinite loading scenarios like "load more", infinite scroll, or pagination based on last page's data (like cursor)
-   *
-   * If your pagination is based on page number, you should just use `useData()`, pass page index and per page
-   * count as request query parameters
+   * @see https://tayori.skk.moe
    *
    * @example
    *
@@ -267,14 +217,7 @@ export function tayori<
 
   // ---------- useMutation ----------
   /**
-   * useMutation looks like useSWRMutation, but it doesn't really use useSWRMutation internally.
-   *
-   * It should be noted that by default "useMutation" WILL NOT flush other useSWR/useData hooks' cache.
-   * You WILL HAVE TO call mutate() manually if you want to flush the cache after mutation.
-   *
-   * This is intentional. Imagine Hey API generated two SDK methods, `getData` & `updateData`,
-   * two functions will have different identity and referential equality, so you won't get the
-   * same SWR key, and you really can't get auto invalidation.
+   * @see https://tayori.skk.moe
    *
    * @example
    *
@@ -291,58 +234,6 @@ export function tayori<
    * >
    *   Save
    * </button>
-   * ```
-   *
-   * Special Note on useMutation + fetch on demand scenario:
-   *
-   * In most case, you should use `useData()` to fetch data on demand:
-   *
-   * ```tsx
-   * // if `search` is falsy, useData will skip this request
-   * useData(getData, search ? { query: { search } } : null);
-   *
-   * // if `otherData` is undefined, this function will throw, `useData()` also skip this request
-   * useData(getData, () => ({ query: { otherData.search } }));
-   *
-   * // use button to manually start loading
-   * const [shouldFetch, setShouldFetch] = useState(false);
-   * useData(getData, shouldFetch ? { query: { search } } : null);
-   * <button onClick={() => setShouldFetch(true)}>Begin Load!</button>
-   * ```
-   *
-   * However, sometimes you might wanna trigger a fetch within an event handler, and you still
-   * want the result to be accessible within your event handler. You can achieve this with
-   * `useMutation()` like this:
-   *
-   * ```tsx
-   * const { trigger } = useMutation(getData, { onSuccess(data) { toast.success(`Data loaded: ${data}`); } });
-   *
-   * <button
-   *   onClick={async () => {
-   *     const data = await trigger({});
-   *     // do something else with data here
-   *   }}
-   * >
-   *   Fetch Data
-   * </button>
-   * ```
-   *
-   * Now, imagine you also have another `useData(getData, {})` hook that is fetching the same data (maybe in
-   * another page, or soon to be rendered component). Since `getData` SDK method is side-effect free, you may
-   * want the other `useData(getData, {})` to re-use the same cache that your `useMutation(getData)` just
-   * fetched.
-   *
-   * Here is the `populateCache` option comes in. By setting `populateCache` to true, after your mutation
-   * successfully fetches the data, it will write the cache into SWR for other `useData(getData, {})` to re-use:
-   *
-   * ```tsx
-   * const { trigger } = useMutation(getData, { populateCache: true });
-   * // you can specify option inside trigger
-   * trigger({}, { populateCache: true });
-   *
-   * // in othrt page
-   * // this first loads instantly with the previously fetched cache, and may or may not start a revalidation
-   * useData(getData, {});
    * ```
    */
   function useMutation<SdkMethod extends GeneralSdkMethod>(sdkMethod: SdkMethod, options?: UseMutationOptions<SdkData<SdkMethod>, unknown>) {
@@ -574,6 +465,9 @@ export function tayori<
   }
 
   // ---------- Preloading ----------
+  /**
+   * @see https://tayori.skk.moe
+   */
   function usePreload() {
     const defaultFetcher = useDefaultSWRFetcher();
 
@@ -707,7 +601,78 @@ export function tayori<
     );
   }
 
-  return { useData, usePreload, useDataImmutable, useInfinite, TayoriProvider, useMutation };
+  return {
+    /**
+     * @see https://tayori.skk.moe
+     *
+     * @example
+     *
+     * ```ts
+     * import { getData } from 'path/to/hey-api-generated-sdk';
+     *
+     * useData(getData, {});
+     * useData(getData, { query: {}, body: 'hey api request options goes here' });
+     *
+     * // use falsy value to pause the request
+     * useData(getData, null);
+     *
+     * // you can pass sdkArg as an function that will return a sdkArg
+     * // when this function throw or return a falsy value, the request will be paused
+     * useData(getData, () => ({ query: {}, body: 'hey api request options goes here' }));
+     *
+     * // You can pass SWR options as the third argument
+     * useData(getData, { query: {} }, { revalidateOnFocus: false });
+     * ```
+     */
+    useData,
+    /**
+     * @see https://tayori.skk.moe
+     */
+    usePreload,
+    /**
+     * @see https://tayori.skk.moe
+     */
+    useDataImmutable,
+    /**
+     * @see https://tayori.skk.moe
+     *
+     * @example
+     *
+     * ```tsx
+     * const { data, error, size, setSize } = useInfinite(getData, (pageIndex, previousPageData) => {
+     *   if (previousPageData && !previousPageData.nextCursor) return null;
+     *   return {
+     *     query: {
+     *       cursor: previousPageData?.nextCursor,
+     *       perPage: 10
+     *     }
+     *   };
+     * });
+     * ```
+     */
+    useInfinite,
+    /**
+     * You should wrap your app/routes with TayoriProvider and pass the Hey API client instance.
+     *
+     * @see https://tayori.skk.moe
+     */
+    TayoriProvider,
+    /**
+     * @see https://tayori.skk.moe
+     *
+     * @example
+     *
+     * ```tsx
+     * const { trigger } = useMutation(updateData);
+     *
+     * await trigger({
+     *   query: {},
+     *   body: 'hey api request options goes here'
+     * });
+     * ```
+     */
+    useMutation
+  } as const;
 }
 
 const kUseDataSwrKey = Symbol('tayori SWR key');
