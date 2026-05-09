@@ -19,6 +19,9 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@fontsource/instrument-sans": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/noto-sans-jp": "^5.2.9",
     "@stylexjs/babel-plugin": "^0.18.3",
     "@stylexjs/stylex": "^0.18.3",
     "@types/node": "^20.19.40",

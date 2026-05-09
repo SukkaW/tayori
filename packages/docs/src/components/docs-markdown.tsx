@@ -80,7 +80,7 @@ const styles = stylex.create({
   inlineCode: {
     fontFamily: 'var(--font-jetbrains-mono), monospace',
     fontSize: 12,
-    backgroundColor: '#f7f4ef',
+    backgroundColor: '#f1f5f9',
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: '#e5e0d8',
@@ -156,7 +156,7 @@ const styles = stylex.create({
     lineHeight: 1.5,
     borderBottomWidth: 1,
     borderBottomStyle: 'solid',
-    borderBottomColor: '#f7f4ef'
+    borderBottomColor: '#f1f5f9'
   }
 });
 

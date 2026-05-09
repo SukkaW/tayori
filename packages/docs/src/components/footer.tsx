@@ -3,7 +3,7 @@ import { CurrentYear } from 'foxact/current-year';
 
 const styles = stylex.create({
   root: {
-    backgroundColor: '#f7f4ef',
+    backgroundColor: '#f1f5f9',
     borderTopWidth: 1,
     borderTopStyle: 'solid',
     borderTopColor: '#e5e0d8',
