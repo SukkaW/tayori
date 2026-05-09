@@ -47,7 +47,7 @@ const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '0.09em',
     textTransform: 'uppercase',
-    color: '#b3a99e',
+    color: '#6a7282',
     marginBottom: 14
   },
   separator: {
@@ -68,7 +68,7 @@ const styles = stylex.create({
     marginLeft: -12,
     fontSize: 12.5,
     color: {
-      default: '#786e63',
+      default: '#6a7282',
       ':hover': '#1c1915'
     },
     textDecoration: 'none',
@@ -88,8 +88,8 @@ const styles = stylex.create({
     paddingLeft: 22,
     fontSize: 12,
     color: {
-      default: '#b3a99e',
-      ':hover': '#786e63'
+      default: '#6a7282',
+      ':hover': '#6a7282'
     }
   },
   linkDepth2Active: {

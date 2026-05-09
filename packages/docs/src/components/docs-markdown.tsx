@@ -57,7 +57,7 @@ const styles = stylex.create({
   paragraph: {
     fontSize: 14.5,
     lineHeight: 1.78,
-    color: '#786e63',
+    color: '#6a7282',
     marginBottom: 12,
     overflowWrap: 'anywhere'
   },
@@ -98,7 +98,7 @@ const styles = stylex.create({
     marginBlock: '14px',
     marginInline: '0',
     fontSize: 13.5,
-    color: '#786e63',
+    color: '#6a7282',
     lineHeight: 1.65,
     maxWidth: '100%',
     overflowWrap: 'anywhere'
@@ -109,7 +109,7 @@ const styles = stylex.create({
     marginBottom: '14px',
     marginLeft: '20px',
     fontSize: 14.5,
-    color: '#786e63',
+    color: '#6a7282',
     lineHeight: 1.72
   },
   listItem: {
@@ -135,7 +135,7 @@ const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
-    color: '#b3a99e',
+    color: '#6a7282',
     borderBottomWidth: 1,
     borderBottomStyle: 'solid',
     borderBottomColor: '#e5e0d8'
@@ -143,7 +143,7 @@ const styles = stylex.create({
   tableCell: {
     paddingBlock: '9px',
     paddingInline: '10px',
-    color: '#786e63',
+    color: '#6a7282',
     verticalAlign: 'top',
     lineHeight: 1.5,
     borderBottomWidth: 1,

@@ -34,7 +34,7 @@ const styles = stylex.create({
     marginTop: 10,
     fontSize: 16,
     lineHeight: 1,
-    color: '#b3a99e',
+    color: '#6a7282',
     letterSpacing: '0.01em'
   },
   taglineJp: {
@@ -45,7 +45,7 @@ const styles = stylex.create({
   },
   sub: {
     fontSize: 16,
-    color: '#786e63',
+    color: '#6a7282',
     maxWidth: '520px',
     lineHeight: 1.65,
     textAlign: 'center',
@@ -78,11 +78,11 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: {
       default: '#e5e0d8',
-      ':hover': '#b3a99e'
+      ':hover': '#6a7282'
     },
     backgroundColor: '#ffffff',
     color: {
-      default: '#786e63',
+      default: '#6a7282',
       ':hover': '#1c1915'
     },
     transitionProperty: 'border-color, color',
@@ -107,7 +107,7 @@ const styles = stylex.create({
   },
   pill: {
     fontSize: 12,
-    color: '#786e63',
+    color: '#6a7282',
     fontFamily: 'var(--font-jetbrains-mono), monospace',
     borderWidth: 1,
     borderStyle: 'solid',
@@ -161,7 +161,7 @@ const styles = stylex.create({
   //   fontSize: 9.5,
   //   fontWeight: 500,
   //   // color: '#0e7490',
-  //   color: '#b3a99e',
+  //   color: '#6a7282',
   //   letterSpacing: '0.07em',
   //   marginBottom: 10,
   //   opacity: 0.85
@@ -174,7 +174,7 @@ const styles = stylex.create({
     justifyContent: 'center',
     marginTop: 18,
     fontSize: 12,
-    color: '#b3a99e',
+    color: '#6a7282',
     letterSpacing: '0.05em',
     textTransform: 'uppercase'
   },

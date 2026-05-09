@@ -311,12 +311,23 @@ function PlanetCreationForm() {
 We also recommend you to wrap `useMutation` with your own custom hooks for better reusability, just like `useData`.
 
 ```tsx
-export const useCreatePlanet = () => useMutation(createPlanet, {/* shared mutation options */});
+export const useCreatePlanet = () => useMutation(createPlanet);
 ```
 
 ### Mutation Options
 
-The mutation options can be passed either as the second argument of `useMutation` or the second argument of `trigger` (take priority).
+The mutation options can be passed either as the second argument of `useMutation` or the second argument of `trigger` (take priority):
+
+```tsx
+const { trigger } = useMutation(createPlanet, {
+  /* mutation options */
+});
+
+await trigger(
+  { /* Hey API request options */ },
+  { /* mutation options */ }
+);
+```
 
 **onSuccess(data)**
 
@@ -335,7 +346,18 @@ Callback function when a remote mutation has thrown an error.
 
 ### Fetching within an Event Handler
 
-In most cases, you should use `useData` for conditional data fetching, as demonstrated above.
+In most cases, you should use `useData` for conditional data fetching.
+
+```tsx
+const [userInitiatedLoading, setUserInitiatedLoading] = useState(false);
+useData(getAllPlanets, userInitiatedLoading ? {} : null);
+
+const [searchQuery, setSearchQuery] = useState('');
+useData(searchPlanets, () => {
+  if (searchQuery.trim().length === 0) return null;
+  return { query: { q: searchQuery } };
+});
+```
 
 However, sometimes you might want to trigger a data fetch from an event handler (typically on a user interaction), and also access the response data within the same event handler (where with `useData` the response data will only be available in the next render). In this case, you can also use `useMutation` for fetching data.
 
@@ -487,10 +509,10 @@ useInfinite(
 You can use the `usePreload` hook to get a `preload` function for prefilling the cache for future `useData` calls within the React.
 
 ```tsx
-const { preload } = usePreload();
-
 function App() {
-  // you can call "preload" function within component render phase
+  const { preload } = usePreload();
+
+  // you can then call "preload" function within component render phase
   preload(getAllPlanets, { query: { page: 0, per_page: 20 } });
 
   // or within an effect

@@ -9,7 +9,7 @@ import 'stylex-webpack/stylex.css';
 const styles = stylex.create({
   html: {
     fontFamily: 'var(--font-instrument-sans), system-ui, sans-serif',
-    backgroundColor: '#f7f4ef',
+    backgroundColor: '#f1f5f9',
     color: '#1c1915',
     scrollBehavior: 'smooth'
   },

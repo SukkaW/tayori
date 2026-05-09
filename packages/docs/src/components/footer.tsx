@@ -18,7 +18,7 @@ const styles = stylex.create({
   },
   text: {
     fontSize: 12.5,
-    color: '#786e63'
+    color: '#6a7282'
   },
   textLink: {
     color: '#0e7490',
@@ -32,7 +32,7 @@ const styles = stylex.create({
   link: {
     fontSize: 12.5,
     color: {
-      default: '#786e63',
+      default: '#6a7282',
       ':hover': '#1c1915'
     },
     textDecoration: 'none'
