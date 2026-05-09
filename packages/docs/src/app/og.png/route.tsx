@@ -2,12 +2,6 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 
-export const dynamic = 'force-static';
-
-export const alt = 'tayori — An opinionated React client-side data fetching stack built on top of SWR and Hey API';
-export const size = { width: 1200, height: 630 };
-export const contentType = 'image/png';
-
 function fontsourceFile(pkg: string, file: string) {
   return readFile(join(process.cwd(), 'node_modules', pkg, 'files', file));
 }
@@ -16,7 +10,7 @@ const SITE_URL = 'https://tayori.skk.moe';
 const REPO_URL = 'https://github.com/SukkaW/tayori';
 const DESCRIPTION = 'An opinionated React client-side data fetching stack built on top of SWR and Hey API.';
 
-export default async function OpengraphImage() {
+export async function GET() {
   const [
     instrumentSans600,
     instrumentSans400Italic,
@@ -123,7 +117,7 @@ export default async function OpengraphImage() {
       </div>
     ),
     {
-      ...size,
+      width: 1200, height: 630,
       fonts: [
         { name: 'Instrument Sans', data: instrumentSans600, weight: 600, style: 'normal' },
         { name: 'Instrument Sans', data: instrumentSans400Italic, weight: 400, style: 'italic' },
@@ -135,3 +129,5 @@ export default async function OpengraphImage() {
     }
   );
 }
+
+export const dynamic = 'force-static';

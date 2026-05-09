@@ -29,7 +29,6 @@ export default defineConfig({
     {
       name: '@hey-api/client-ky',
       // or any of your chosen Hey API client plugin
-      // very long line test test test very long line test test testvery long line test test testvery long line test test test
       // ...other options
       throwOnError: true, // [!code highlight]
       includeInEntry: true // [!code highlight]

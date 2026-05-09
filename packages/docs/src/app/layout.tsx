@@ -72,7 +72,16 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: 'tayori',
     title: SITE_TITLE,
-    description: SITE_DESCRIPTION
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        width: 1200,
+        height: 630,
+        url: `${SITE_URL}/og.png`,
+        alt: 'tayori — An opinionated React client-side data fetching stack built on top of SWR and Hey API',
+        type: 'image/png'
+      }
+    ]
   },
   twitter: {
     card: 'summary_large_image',
