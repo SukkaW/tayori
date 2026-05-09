@@ -162,6 +162,22 @@ export const useAllPlanets = (pageIndex?: number, perPage?: number) => {
 };
 ```
 
+> **DO NOT spread the return value of `useData`!**
+>
+> `useData` uses a re-redender reduction optimization technique, that can track if you have accessed specific fields, and only re-render when actually used fields change.
+>
+> Spreading the return value of `useData` will break this optimization and cause unnecessary re-renders.
+>
+> ```tsx
+> // DON'T DO THIS
+> export const useAllPlanets = (pageIndex?: number, perPage?: number) => {
+>   return {
+>     ...useData(getAllPlanets, { query: { page: pageIndex, per_page: perPage } }),
+>     someOtherField: 'someValue'
+>   };
+> };
+> ```
+
 ### Conditional Fetching
 
 You can pass a falsy value (`false | null | undefined | 0 | ''`) as the second argument to conditionally disable the request:
@@ -313,6 +329,11 @@ We also recommend you to wrap `useMutation` with your own custom hooks for bette
 ```tsx
 export const useCreatePlanet = () => useMutation(createPlanet);
 ```
+
+> **DO NOT spread the return value of `useMutation`!**
+>
+> Just like `useData`, `useMutation` also uses the same re-redender reduction optimization technique.
+> Spreading the return value of `useMutation` will break this optimization and cause unnecessary re-renders.
 
 ### Mutation Options
 
@@ -472,6 +493,11 @@ const { data: pages, size, setSize, isLoading, mutate } = useInfinite(
 ```
 
 `useInfinite` accepts the Hey API generated SDK method as the first argument, a "getRequestOptions" function as the second argument, and an optional SWR options as the third argument.
+
+> **DO NOT spread the return value of `useInfinite`!**
+>
+> Just like `useData`, `useInfinite` also uses the same re-redender reduction optimization technique.
+> Spreading the return value of `useInfinite` will break this optimization and cause unnecessary re-renders.
 
 ### Return Values
 
