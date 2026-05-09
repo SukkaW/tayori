@@ -516,7 +516,7 @@ useInfinite(
   getAllData,
   getRequestOptions,
   {
-    intialSize: 1, // the initial value of `size`
+    initialSize: 1, // the initial value of `size`
     parallel: false, // whether to fetch pages in parallel or sequentially
     persistSize: false, // whether NOT to reset `size` back to 1 when first page's request options change
     // ... and other useSWRInfinite options
