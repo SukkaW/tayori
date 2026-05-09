@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
+import type { Person, SoftwareSourceCode, WebSite, WithContext } from 'schema-dts';
 
 import '@/styles/globals.css';
 import 'stylex-webpack/stylex.css';
@@ -59,7 +60,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
     types: {
-      'text/markdown': '/llms-full.txt'
+      'text/markdown': [{
+        url: '/llms-full.txt',
+        title: 'LLM friendly version of tayori\'s documentation'
+      }]
     }
   },
   openGraph: {
@@ -94,13 +98,62 @@ export const metadata: Metadata = {
   }
 };
 
+const author: Person = {
+  '@type': 'Person',
+  name: 'Sukka',
+  url: 'https://skk.moe',
+  sameAs: [
+    'https://github.com/SukkaW',
+    'https://twitter.com/isukkaw',
+    'https://bsky.app/profile/skk.moe',
+    'https://acg.mn/@sukka'
+  ]
+};
+
+const websiteJsonLd: WithContext<WebSite> = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  url: SITE_URL,
+  name: 'tayori',
+  description: SITE_DESCRIPTION,
+  inLanguage: 'en-US',
+  author
+};
+
+const softwareJsonLd: WithContext<SoftwareSourceCode> = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: 'tayori',
+  description: SITE_DESCRIPTION,
+  url: SITE_URL,
+  codeRepository: 'https://github.com/SukkaW/tayori',
+  programmingLanguage: 'TypeScript',
+  runtimePlatform: 'React',
+  license: 'https://opensource.org/licenses/MIT',
+  author
+};
+
+const serializeJsonLd = (data: unknown) => JSON.stringify(data).replaceAll('<', String.raw`\u003c`).replaceAll('>', String.raw`\u003e`);
+
 export default function RootLayout({ children }: React.PropsWithChildren) {
   return (
     <html
       lang="en"
       {...stylexPropsWithClassName(stylex.props(styles.html), instrumentSans.variable, jetbrainsMono.variable)}
     >
-      <body {...stylex.props(styles.body)}>{children}</body>
+      <body {...stylex.props(styles.body)}>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- JSON-LD payload is built from static data.
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line @eslint-react/dom-no-dangerously-set-innerhtml -- JSON-LD payload is built from static data.
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(softwareJsonLd) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }
