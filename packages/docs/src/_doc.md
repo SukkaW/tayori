@@ -532,7 +532,7 @@ You can use the `usePreload` hook to get a `preload` function for prefilling the
 
 ```tsx
 function App() {
-  const { preload } = usePreload();
+  const preload = usePreload();
 
   // you can then call "preload" function within component render phase
   preload(getAllPlanets, { query: { page: 0, per_page: 20 } });
