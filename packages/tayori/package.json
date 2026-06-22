@@ -1,6 +1,6 @@
 {
   "name": "tayori",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "An opinionated React client-side data fetching stack built with Ky, SWR, Zod and Hey API",
   "repository": {
     "type": "git",
