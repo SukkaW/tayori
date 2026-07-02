@@ -10,9 +10,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: React.PropsWithChildren) {
   return (
     <html lang="en">
       <body style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 800, margin: '0 auto', padding: '2rem' }}>

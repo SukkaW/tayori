@@ -7,14 +7,14 @@
     "build": "next build --webpack && cfpages-early-hints generate"
   },
   "dependencies": {
-    "@shikijs/transformers": "^4.2.0",
+    "@shikijs/transformers": "^4.3.0",
     "foxact": "^0.3.8",
     "foxmd": "^0.3.2",
-    "next": "^16.2.9",
+    "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-wrap-balancer": "^1.1.1",
-    "shiki": "^4.2.0",
+    "shiki": "^4.3.0",
     "ts-dedent": "^2.3.0",
     "vaul": "^1.1.2"
   },

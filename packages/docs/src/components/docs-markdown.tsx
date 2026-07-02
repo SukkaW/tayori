@@ -164,7 +164,7 @@ function filterLinkHref(href: string) {
   return href.startsWith('javascript:') ? '#' : href;
 }
 
-export function DocsMarkdownRoot({ children }: { children: React.ReactNode }) {
+export function DocsMarkdownRoot({ children }: React.PropsWithChildren) {
   return <div {...stylex.props(styles.main)}>{children}</div>;
 }
 
