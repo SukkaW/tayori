@@ -523,12 +523,12 @@ export function tayori<
 
   const fetchMiddleware: SWRMiddleware =
     (useSWRNext) => (key: SWRKey, customFetcher, config): SWRResponse => {
+      const defaultFetcher = useDefaultSWRFetcher();
+
       if (!isInternalSWRKey(key)) {
         // Not from useData, fallback to default SWR behavior
         return useSWRNext(key, customFetcher, config);
       }
-
-      const defaultFetcher = useDefaultSWRFetcher();
 
       return useSWRNext(key, customFetcher ?? defaultFetcher, config);
     };
