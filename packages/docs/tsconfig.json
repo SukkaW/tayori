@@ -5,7 +5,7 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "module": "esnext",
     "paths": {
-      "@/*": ["${configDir}/src/*"]
+      "@/*": ["./src/*"]
     },
     "plugins": [
       {
