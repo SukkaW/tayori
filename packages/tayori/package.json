@@ -41,10 +41,10 @@
     "stable-hash": "^0.0.6"
   },
   "devDependencies": {
-    "@swc/core": "^1.15.43",
+    "@swc/core": "^1.15.46",
     "@types/react": "^19.2.17",
-    "bunchee": "^6.11.0",
-    "react": "^19.2.7",
+    "bunchee": "^6.12.2",
+    "react": "^19.2.8",
     "swr": "^2.4.2",
     "zod": "4.3.6"
   },
