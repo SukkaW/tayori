@@ -135,3 +135,27 @@ describe('useInfinite', () => {
     expect(backend.calls.map((call) => call.callOptions)).toEqual([{ header: 'x' }, undefined]);
   });
 });
+
+describe('useInfinite key building errors', () => {
+  it('surfaces errors thrown by backend.argKey through SWR error instead of pausing', async () => {
+    const backend = createFakeBackend();
+    backend.argKey = (_method, arg) => {
+      if (arg.id === 13) throw new Error('cannot serialize page');
+      const { cacheTags, ...rest } = arg;
+      return [rest, cacheTags];
+    };
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result } = renderHook(() => {
+      const { data, error } = instance.useInfinite('Get', () => ({ id: 13 }), { shouldRetryOnError: false });
+      return { data, error };
+    }, { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.error).toBeA(Error);
+    });
+    expect((result.current.error as Error).message).toEqual('cannot serialize page');
+    expect(backend.calls).toEqual([]);
+  });
+});

@@ -299,6 +299,9 @@ describe('isInternalSWRKey', () => {
     if (!isInternalSWRKey(key)) {
       throw new Error('unreachable');
     }
+    if (typeof key === 'function') {
+      throw new TypeError('expected a resolved key array');
+    }
     // [client, sdkMethod, argWithoutCacheTags, cacheTags]
     expect(Array.from(key)).toEqual([client, sdk, { query: { id: 1 } }, ['#items']]);
 

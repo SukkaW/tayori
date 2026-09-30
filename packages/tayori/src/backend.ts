@@ -74,7 +74,7 @@ export const heyApiBackend: TayoriBackend<GeneralSdkMethod, HeyApiSdkArg, unknow
     const { cacheTags, ...restSdkArg } = sdkArg;
     return [restSdkArg, cacheTags];
   },
-  fetch: (client, sdkMethod, argKey) => callSdk(client, sdkMethod as GeneralSdkMethod, argKey as Record<string, unknown>, true),
+  fetch: (client, sdkMethod, argKey) => callSdk(client, sdkMethod, argKey as Record<string, unknown>, true),
   call(client, sdkMethod, sdkArg) {
     const { cacheTags: _unusedCacheTags, ...restSdkArg } = sdkArg;
     return callSdk(client, sdkMethod, restSdkArg, false);

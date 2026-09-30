@@ -26,18 +26,14 @@ export type AnyMessage = MessageShape<DescMessage>;
 export type TayoriConnectMethodKey = `${string}/${string}`;
 
 /**
- * SWR keys only contain plain data (so they stay serializable and cache friendly), but the fetcher
- * needs the method descriptor to encode the request and decode the response. Every descriptor that
- * tayori-connect builds a key for is registered here.
+ * Slot 1 of a tayori-connect SWR key. Also validates that the method is unary: streaming methods
+ * are not supported (yet).
  */
-const methodRegistry = new Map<TayoriConnectMethodKey, AnyUnaryMethod>();
-
 export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
   const key: TayoriConnectMethodKey = `${method.parent.typeName}/${method.name}`;
   if (method.methodKind !== 'unary') {
     throw new TypeError(`[tayori-connect] ${key} is a ${method.methodKind} method, only unary methods are supported for now`);
   }
-  methodRegistry.set(key, method as AnyUnaryMethod);
   return key;
 }
 
@@ -84,13 +80,7 @@ export function createConnectBackend({ registry }: TayoriConnectBackendOptions =
     // Canonical proto3 JSON: unset / default fields are omitted, 64-bit integers become strings,
     // bytes become base64, well-known types use their JSON mapping. Equivalent inits yield equal keys.
     argKey: (method, init) => [toJson(method.input, create(method.input, init), jsonOptions), undefined],
-    fetch(transport, methodKey, argKey, callOptions) {
-      const method = methodRegistry.get(methodKey as TayoriConnectMethodKey);
-      if (!method) {
-        throw new Error(`[tayori-connect] unknown method "${String(methodKey)}" in SWR key, keys must be created by tayori-connect hooks`);
-      }
-      return unary(transport, method, fromJson(method.input, argKey as JsonValue, jsonOptions), callOptions);
-    },
+    fetch: (transport, method, argKey, callOptions) => unary(transport, method, fromJson(method.input, argKey as JsonValue, jsonOptions), callOptions),
     call: unary
   };
 }

@@ -41,9 +41,9 @@ export function createFakeBackend(name = 'fake'): FakeBackend {
     argKey(_method, { cacheTags, ...rest }) {
       return [rest, cacheTags];
     },
-    fetch(client, methodKey, argKey, callOptions) {
-      backend.calls.push({ via: 'fetch', client, method: methodKey as string, arg: argKey, callOptions });
-      return backend.respond(client, methodKey as string, argKey as { id: number });
+    fetch(client, method, argKey, callOptions) {
+      backend.calls.push({ via: 'fetch', client, method, arg: argKey, callOptions });
+      return backend.respond(client, method, argKey as { id: number });
     },
     call(client, method, { cacheTags: _cacheTags, ...rest }, callOptions) {
       backend.calls.push({ via: 'call', client, method, arg: rest, callOptions });

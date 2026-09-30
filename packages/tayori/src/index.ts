@@ -64,17 +64,15 @@ export type { UseMutationOptions } from 'tayori-core';
  * ```
  */
 export function tayori<
-  SDKOptions extends { client?: unknown } = any,
-  SDKRequestResult extends Promise<any> = Promise<{
+  // Both generics are kept for backward compatibility of the public signature. Each hook infers
+  // its request / response types from the SDK method it receives, so they are not used.
+  _SDKOptions extends { client?: unknown } = any,
+  _SDKRequestResult extends Promise<any> = Promise<{
     data: unknown,
     request: Request,
     response: Response
   }>
 >() {
-  // The generics are kept for backward compatibility of the public signature. Each hook infers
-  // its request / response types from the SDK method it receives.
-  type _Unused = [SDKOptions, SDKRequestResult];
-
   const core = createTayori(heyApiBackend);
 
   // ---------- useData ----------
@@ -304,6 +302,12 @@ export function tayori<
      */
     TayoriProvider,
     /**
+     * Returns the Hey API client of the nearest `<TayoriProvider />`. The client is slot 0 of every
+     * SWR key (`[client, sdkMethod, sdkArg, cacheTags]`), so you need it to build a key by hand
+     * for `mutate()` or `SWRConfig`'s `fallback`.
+     */
+    useClient: core.useClient,
+    /**
      * @see https://tayori.skk.moe
      *
      * @example
@@ -328,9 +332,11 @@ export function tayori<
  * If you also write your own SWR middleware, you can use this function to check if the SWR
  * request is from tayori or not.
  *
- * Note that the key layout is `[client, sdkMethod, sdkArg, cacheTags]`.
+ * Note that the key layout is `[client, sdkMethod, sdkArg, cacheTags]` (it was `[sdkMethod, sdkArg, cacheTags]`
+ * before 0.4.0), and that SWR hands middlewares the raw key, which is a function when the hook was called with a
+ * function argument, so check `Array.isArray(key)` before indexing into it.
  */
-export function isInternalSWRKey(key: unknown): key is InternalSWRKey {
+export function isInternalSWRKey(key: unknown): key is InternalSWRKey | (() => InternalSWRKey | null) {
   return isTayoriKey(key) && key[kTayoriKey].backend === heyApiBackend.name;
 }
 

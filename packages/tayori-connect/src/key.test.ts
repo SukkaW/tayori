@@ -256,12 +256,6 @@ describe('getMethodKey', () => {
 });
 
 describe('createConnectBackend', () => {
-  it('fetch() rejects method keys it did not build', () => {
-    const backend = createConnectBackend();
-    const { transport } = createTestTransport();
-    expect(() => backend.fetch(transport, 'tayori.test.v1.TestService/Nope', {}, undefined)).toThrow('unknown method "tayori.test.v1.TestService/Nope"');
-  });
-
   describe('registry option', () => {
     // A unary method whose input is `google.protobuf.Any`, built at runtime since the fixture proto has none
     const anyFile = createFileRegistry(
@@ -287,6 +281,22 @@ describe('createConnectBackend', () => {
       expect(createConnectBackend().argKey(wrap, {})).toEqual([{}, undefined]);
     });
 
+    it('surfaces the missing registry through SWR error for object and thunk inputs alike', async () => {
+      const { wrapper } = setup();
+
+      const { result } = renderHook(() => ({
+        object: useData(wrap, packed, { shouldRetryOnError: false }),
+        thunk: useData(wrap, () => packed, { shouldRetryOnError: false })
+      }), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.object.error).toBeA(Error);
+        expect(result.current.thunk.error).toBeA(Error);
+      });
+      expect(String(result.current.object.error)).toInclude('is not in the type registry');
+      expect(String(result.current.thunk.error)).toInclude('is not in the type registry');
+    });
+
     it('encodes the Any for the key and decodes it again for the request', async () => {
       const backend = createConnectBackend({ registry });
       const [argKey] = backend.argKey(wrap, packed);
@@ -295,7 +305,7 @@ describe('createConnectBackend', () => {
       const transport = createRouterTransport(({ rpc }) => {
         rpc(wrap, (request) => request);
       });
-      const response = await backend.fetch(transport, backend.methodKey(wrap), argKey, undefined);
+      const response = await backend.fetch(transport, wrap, argKey, undefined);
       const unpacked = anyUnpack(response as Any, EchoRequestSchema);
       expect(unpacked?.text).toEqual('inside');
     });

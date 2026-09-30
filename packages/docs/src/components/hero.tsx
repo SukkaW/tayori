@@ -254,9 +254,9 @@ const BENTO: BentoCard[] = [
     code: ts`
       const { data, setSize } = useInfinite(
         getAllPlanets,
-        (i, prev) => (prev?.cursor
-          ? { query: { cursor: prev.cursor } }
-          : null)
+        (i, prev) => (i > 0 && !prev?.cursor
+          ? null // reached the end
+          : { query: { cursor: prev?.cursor } })
       );
     `.trim()
   },

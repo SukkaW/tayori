@@ -8,24 +8,22 @@ import { noop } from 'foxact/noop';
 import { createContext, startTransition, use, useCallback, useRef, useTransition } from 'react';
 import { stableHash } from 'stable-hash';
 
-import type { BareFetcher, SWRConfiguration, Key as SWRKey, Middleware as SWRMiddleware, SWRResponse } from 'swr';
+import type { BareFetcher, SWRConfiguration, Key as SWRKey, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
 
 import useSWR, { SWRConfig, useSWRConfig, preload as swrPreload } from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import useSWRInfinite from 'swr/infinite';
 
-import type { BrandedTayoriKey, BrandedTayoriKeyThunk, TayoriInstanceToken } from './key';
-import { brand, getKey, isTayoriKey, kTayoriCallOptions, kTayoriKey } from './key';
+import type { BrandedTayoriKey, TayoriInstanceToken } from './key';
+import { brand, buildKeyArray, getKey, getKeyError } from './key';
 import type {
-  CacheTag,
   Falsy,
   SWRConfigurationWithOptionalFallback,
   SWRInfiniteConfigurationWithOptionalFallback,
   TayoriBackend,
   TayoriFetchOptions,
   TayoriInfiniteKeyLoader,
-  TayoriKey,
   TayoriProviderProps,
   UseMutationOptions
 } from './types';
@@ -36,7 +34,7 @@ export type {
   TayoriInstanceToken,
   TayoriKeyBrand
 } from './key';
-export { isTayoriKey, kTayoriCallOptions, kTayoriKey } from './key';
+export { isTayoriKey, kTayoriKey, kTayoriKeyError } from './key';
 export type {
   CacheTag,
   Falsy,
@@ -52,13 +50,15 @@ export type {
 } from './types';
 export { mutateWithTags as unstable_mutateWithTags, useMutateWithTags as unstable_useMutateWithTags } from './mutate-with-tags';
 
-export type TayoriInstance<Method, Arg, Data, Client extends object, CallOptions = never> = ReturnType<typeof createTayori<Method, Arg, Data, Client, CallOptions>>;
-
 /**
  * Create the tayori hooks + provider for a backend. This is what `tayori` (Hey API) and
- * `tayori-connect` (ConnectRPC) call under the hood. Each call creates an isolated instance:
- * its own React context, its own SWR middleware, and its own key brand, so multiple instances
- * (even of different backends) can be nested in the same React tree.
+ * `tayori-connect` (ConnectRPC) call under the hood. Each call creates an isolated instance with
+ * its own React context and its own key brand, so multiple instances (even of different backends)
+ * can be nested in the same React tree.
+ *
+ * Every hook passes its own SWR fetcher, a closure over the method descriptor and the hook's latest
+ * call options, so no SWR middleware is involved: a global `SWRConfig.fetcher` never applies to
+ * tayori keys, while user middlewares that wrap the fetcher keep working.
  *
  * The hooks returned here are loosely typed on purpose. Adapters wrap them with precisely typed
  * facades for their backend.
@@ -66,65 +66,22 @@ export type TayoriInstance<Method, Arg, Data, Client extends object, CallOptions
 export function createTayori<Method, Arg, Data, Client extends object, CallOptions = never>(
   backend: TayoriBackend<Method, Arg, Data, Client, CallOptions>
 ) {
-  type Key = BrandedTayoriKey<Client, unknown, unknown, CallOptions>;
+  type Key = BrandedTayoriKey<Client>;
   type Options = TayoriFetchOptions<CallOptions>;
   type MutationOptions<D> = UseMutationOptions<D, unknown> & Options;
 
   const token: TayoriInstanceToken = { backend: backend.name };
 
-  const outsideProviderMessage = `[${backend.name}] hooks must be used within <TayoriProvider />`;
-
-  // ---------- Keys ----------
-  /**
-   * Whether the SWR key (or SWR key function) was created by THIS tayori instance.
-   */
-  function isKey(key: unknown): key is Key | BrandedTayoriKeyThunk<Client, unknown, unknown, CallOptions> {
-    return isTayoriKey(key) && key[kTayoriKey] === token;
-  }
-
-  function buildKey(client: Client, method: Method, arg: Arg | Falsy | (() => Arg | Falsy), options: Options | undefined) {
-    return getKey(token, backend, client, method, arg, options);
-  }
-
-  // ---------- SWR Fetcher and Middleware ----------
-  /**
-   * Hooks pass this sentinel (instead of `null`) as the SWR fetcher. The middleware installed by
-   * <TayoriProvider /> swaps it for the real fetcher. Because it is truthy, SWR never falls back to a
-   * global `SWRConfig.fetcher` for tayori keys. If it ever runs, the hook is rendered outside of its
-   * <TayoriProvider /> and the error surfaces through SWR's `error`.
-   */
-  const sentinelFetcher = (): Promise<Data> => {
-    throw new Error(outsideProviderMessage);
-  };
-
-  /**
-   * The default fetcher only needs the key: the client is slot 0, backend call options ride along
-   * as a hidden property.
-   */
-  const fetcher = (key: Key): Promise<Data> => backend.fetch(key[0], key[1], key[2], key[kTayoriCallOptions]);
-
-  const middleware: SWRMiddleware = (useSWRNext) => (key: SWRKey, customFetcher, config) => {
-    if (!isKey(key)) {
-      // Not from this tayori instance (userland useSWR, or another tayori instance), untouched
-      return useSWRNext(key, customFetcher, config);
-    }
-    const resolvedFetcher = (customFetcher == null || customFetcher === sentinelFetcher)
-      ? fetcher
-      : customFetcher;
-    return useSWRNext(key, resolvedFetcher as typeof customFetcher, config);
-  };
-
-  const swrConfigValue: SWRConfiguration = {
-    use: [middleware],
-    keepPreviousData: true
-  };
-
   // ---------- Client Context and Provider ----------
   const ClientContext = createContext<Client | null>(null);
 
   function useClient(): Client {
-    return nullthrow(use(ClientContext), outsideProviderMessage);
+    return nullthrow(use(ClientContext), `[${backend.name}] hooks must be used within <TayoriProvider />`);
   }
+
+  const swrConfigValue: SWRConfiguration = {
+    keepPreviousData: true
+  };
 
   function TayoriProvider({ children, initClient }: TayoriProviderProps<Client>) {
     return (
@@ -136,6 +93,29 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     );
   }
 
+  // ---------- Keys and Fetchers ----------
+  /**
+   * Build the exact SWR key a hook of this instance would use for `method` + `arg`.
+   */
+  function buildKey(client: Client, method: Method, arg: Arg | Falsy | (() => Arg | Falsy), options: Options | undefined) {
+    return getKey(token, backend, client, method, backend.methodKey(method), arg, options?.cacheTags);
+  }
+
+  /**
+   * The SWR fetcher of one hook. It closes over the method and the hook's current call options;
+   * SWR refreshes the fetcher it holds on every render, so revalidations always use the latest ones.
+   */
+  function createFetcher(method: Method, callOptions: CallOptions | undefined) {
+    return async (key: Key): Promise<Data> => {
+      const keyError = getKeyError(key);
+      if (keyError.hasError) {
+        // building the key failed (e.g. backend.argKey could not serialize the request)
+        throw keyError.error as Error;
+      }
+      return backend.fetch(key[0], method, key[2], callOptions);
+    };
+  }
+
   // ---------- useData / useDataImmutable ----------
   // `D` is the response type the adapter facade infers for a given method (a subtype of the
   // backend's `Data`). The runtime does not care about it, adapters decide what it is.
@@ -145,12 +125,13 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     config?: SWRConfigurationWithOptionalFallback<SWROptions>,
     options?: Options
   ): SWRResponse<D, unknown, SWROptions> {
-    // Outside of <TayoriProvider /> the client is null: the key is still built so that the sentinel
-    // fetcher runs and reports the misconfiguration through SWR's `error`.
-    const client = use(ClientContext)!;
+    const client = useClient();
+    // A per-hook `fetcher` in the SWR config is honoured (handy for tests / stories), a global
+    // `SWRConfig.fetcher` is not, since SWR only falls back to it when no fetcher is passed.
+    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher ?? (createFetcher(method, options?.callOptions) as BareFetcher<D>);
     // This non-null assertion is only to make the overloaded types happy.
     // In the runtime useSWR accepts config as undefined as usual
-    return useSWR(buildKey(client, method, arg, options) as SWRKey, sentinelFetcher as BareFetcher<D>, config!);
+    return useSWR(buildKey(client, method, arg, options) as SWRKey, fetcher, config!);
   }
 
   function useDataImmutable<D extends Data = Data, SWROptions extends SWRConfiguration<D> = SWRConfiguration<D>>(
@@ -159,8 +140,9 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     config?: SWRConfigurationWithOptionalFallback<SWROptions>,
     options?: Options
   ): SWRResponse<D, unknown, SWROptions> {
-    const client = use(ClientContext)!;
-    return useSWRImmutable(buildKey(client, method, arg, options) as SWRKey, sentinelFetcher as BareFetcher<D>, config!);
+    const client = useClient();
+    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher ?? (createFetcher(method, options?.callOptions) as BareFetcher<D>);
+    return useSWRImmutable(buildKey(client, method, arg, options) as SWRKey, fetcher, config!);
   }
 
   // ---------- useInfinite ----------
@@ -170,26 +152,23 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     config?: SWRInfiniteConfigurationWithOptionalFallback<SWROptions>,
     options?: Options
   ): SWRInfiniteResponse<D, unknown> {
-    const client = use(ClientContext)!;
+    const client = useClient();
     const methodKey = backend.methodKey(method);
-    const callOptions = options?.callOptions;
 
+    // Following SWR's semantics, a loader that throws or returns a falsy value stops loading pages.
     const getSwrKey = brand(
       (pageIndex: number, previousPageData: D | null): Key | null => {
         const result = getArg(pageIndex, previousPageData);
         if (!result) {
           return null;
         }
-        const [argKey, cacheTagsFromArg] = backend.argKey(method, result);
-        const cacheTags: CacheTag[] | undefined = options?.cacheTags ?? cacheTagsFromArg;
-        const key: TayoriKey<Client> = [client, methodKey, argKey, cacheTags];
-        return brand(key, token, callOptions);
+        return buildKeyArray(token, backend, client, method, methodKey, result, options?.cacheTags);
       },
-      token,
-      callOptions
+      token
     );
 
-    return useSWRInfinite(getSwrKey as SWRInfiniteKeyLoader<D>, sentinelFetcher as BareFetcher<D>, config);
+    const fetcher = (config as SWRInfiniteConfiguration<D> | undefined)?.fetcher ?? (createFetcher(method, options?.callOptions) as BareFetcher<D>);
+    return useSWRInfinite(getSwrKey as SWRInfiniteKeyLoader<D>, fetcher, config);
   }
 
   // ---------- useMutation ----------
@@ -197,19 +176,24 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     const onErrorFromHook = useStableHandler(options?.onError || noop);
     const onSuccessFromHook = useStableHandler(options?.onSuccess || noop);
 
-    const populateCacheFromHook = options?.populateCache ?? false;
-    const cacheTagsFromHook = options?.cacheTags;
-    const callOptionsFromHook = options?.callOptions;
+    // Hook-level options are read through a stable getter inside `trigger` (an event handler), so
+    // that inline option objects (`{ headers: {...} }`, `cacheTags: ['#a']`) don't give `trigger`
+    // a new identity every render.
+    const getHookOptions = useStableHandler(() => ({
+      populateCache: options?.populateCache ?? false,
+      cacheTags: options?.cacheTags,
+      callOptions: options?.callOptions
+    }));
 
     const { mutate: swrMutate } = useSWRConfig();
     const client = useClient();
 
     // Every trigger() and reset() takes the next ticket. A mutation result is only applied if no
     // newer ticket has been issued in the meantime, so if trigger is called multiple times in a
-    // short time (or reset() is called while a mutation is in flight) only the latest one counts.
+    // short time (or reset() is called while a mutation is in flight), only the latest one is applied.
     //
-    // A counter rather than Date.now(): two triggers within the same millisecond would share a
-    // timestamp, and the stale one could then overwrite the latest result.
+    // A monotonic counter is used instead of a timestamp because two calls can happen in the same
+    // millisecond, in which case a timestamp comparison would let a stale result through.
     const latestMutationTicketRef = useRef(0);
 
     const [snap, setState] = useStateWithDeps<{
@@ -239,7 +223,12 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
       async (arg: Arg, triggerOptions?: MutationOptions<D>) => {
         const mutationTicket = ++latestMutationTicketRef.current;
 
-        const callOptions = mergeCallOptions(callOptionsFromHook, triggerOptions?.callOptions);
+        // Validate / identify the method BEFORE anything is sent (for tayori-connect this is where
+        // non-unary methods are rejected)
+        const methodKey = backend.methodKey(method);
+
+        const hookOptions = getHookOptions();
+        const callOptions = mergeCallOptions(hookOptions.callOptions, triggerOptions?.callOptions);
 
         // We could have use swrMutate function here instead of calling the backend directly
         // But I don't want to work with optimisticData and rollbackOnError for now
@@ -257,7 +246,7 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
         const handleSuccess = triggerOptions?.onSuccess || onSuccessFromHook;
         const handleError = triggerOptions?.onError || onErrorFromHook;
 
-        const stringifiedSerializedKey = stableHash([backend.methodKey(method), arg, triggerOptions]);
+        const stringifiedSerializedKey = stableHash([methodKey, arg, triggerOptions]);
 
         // we await promise to ensure React can track the promise status
         startMutating(async () => {
@@ -276,13 +265,13 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
           //
           // But if it's reset after the mutation, we don't broadcast any state change
           if (latestMutationTicketRef.current === mutationTicket) {
-            const shouldPopulateCache = triggerOptions?.populateCache ?? populateCacheFromHook;
+            const shouldPopulateCache = triggerOptions?.populateCache ?? hookOptions.populateCache;
             if (shouldPopulateCache) {
               // buildKey builds [client, methodKey, argKey, cacheTags] —
               // the exact same key useData/useDataImmutable would use for this call.
               // revalidate:false writes the data without triggering a re-fetch.
               const cacheKey = buildKey(client, method, arg, {
-                cacheTags: triggerOptions?.cacheTags ?? cacheTagsFromHook,
+                cacheTags: triggerOptions?.cacheTags ?? hookOptions.cacheTags,
                 callOptions
               });
 
@@ -370,7 +359,7 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
           throw e;
         }
       },
-      [client, method, setState, onSuccessFromHook, onErrorFromHook, populateCacheFromHook, cacheTagsFromHook, callOptionsFromHook, swrMutate]
+      [client, method, setState, onSuccessFromHook, onErrorFromHook, getHookOptions, swrMutate]
     );
 
     const reset = useCallback(() => {
@@ -402,12 +391,12 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
   function usePreload() {
     const client = useClient();
 
-    return function preload(method: Method, arg: Arg, options?: Options) {
+    return useCallback((method: Method, arg: Arg, options?: Options) => {
       const key = buildKey(client, method, arg, options);
       if (key) {
-        swrPreload(key as SWRKey, fetcher as BareFetcher<Data>);
+        swrPreload(key as SWRKey, createFetcher(method, options?.callOptions) as BareFetcher<Data>);
       }
-    };
+    }, [client]);
   }
 
   return {
@@ -421,9 +410,7 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     /**
      * Build the exact SWR key a hook of this instance would use. Useful for manual `mutate()` calls.
      */
-    getKey: buildKey,
-    isKey,
-    token
+    getKey: buildKey
   } as const;
 }
 

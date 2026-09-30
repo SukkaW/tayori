@@ -133,20 +133,9 @@ describe('useData', () => {
     expect(trailers[0].get('x-res-trailer')).toEqual('t');
   });
 
-  it('reports a misconfiguration when rendered outside of <TayoriProvider />', async () => {
-    // The sentinel fetcher throws synchronously while mounting. SWR only re-renders for the fields a
-    // hook has read (dependency collection), so read them during render to observe that update.
-    const { result } = renderHook(() => {
-      const { data, error, isLoading } = useData(TestService.method.echo, { text: 'x' }, { shouldRetryOnError: false });
-      return { data, error, isLoading };
-    });
-
-    await waitFor(() => {
-      expect(result.current.error).toBeA(Error);
-    });
-    expect((result.current.error as Error).message).toEqual('[tayori-connect] hooks must be used within <TayoriProvider />');
-    expect(result.current.data).toEqual(undefined);
-    expect(result.current.isLoading).toEqual(false);
+  it('throws at render when used outside of <TayoriProvider />', () => {
+    expect(() => renderHook(() => useData(TestService.method.echo, { text: 'x' })))
+      .toThrow('[tayori-connect] hooks must be used within <TayoriProvider />');
   });
 });
 
@@ -428,6 +417,8 @@ function useTypeChecks() {
   // @ts-expect-error -- `text` is a string field
   void trigger({ text: 1 });
   const triggered: Promise<EchoResponse> = trigger({ text: 'a' }, { signal: new AbortController().signal });
+  // @ts-expect-error -- `signal` is a trigger-level option, not a hook-level one
+  useMutation(TestService.method.update, { signal: new AbortController().signal });
 
   // @ts-expect-error -- streaming methods are not unary methods
   useData(TestService.method.stream, { text: 'a' });

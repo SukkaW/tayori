@@ -44,8 +44,9 @@ export interface TayoriFetchOptions<CallOptions = never> {
    */
   cacheTags?: CacheTag[],
   /**
-   * Backend specific per-call options (e.g. Connect `headers` / `timeoutMs`). They are forwarded to
-   * the backend when the request is made, but they are NOT part of the SWR key.
+   * Backend specific per-call options (e.g. Connect `headers` / `timeoutMs`). The hook that runs a
+   * request forwards its latest call options to the backend, but they are NOT part of the SWR key:
+   * hooks with the same key share one cache entry (and one in-flight request) regardless of them.
    */
   callOptions?: CallOptions
 }
@@ -68,9 +69,10 @@ export interface TayoriBackend<Method = unknown, Arg = unknown, Data = unknown, 
    */
   argKey(method: Method, arg: Arg): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
   /**
-   * The default SWR fetcher. Only key slots are available here, never the original `method` / `arg`.
+   * The SWR fetcher. Receives the client (key slot 0), the original `method`, the `argKey` (key slot 2,
+   * as produced by `argKey()`) and the per-hook call options of the hook that runs the request.
    */
-  fetch(client: Client, methodKey: unknown, argKey: unknown, callOptions: CallOptions | undefined): Promise<Data>,
+  fetch(client: Client, method: Method, argKey: unknown, callOptions: CallOptions | undefined): Promise<Data>,
   /**
    * Used by `useMutation().trigger()`, where the original `method` and `arg` are available.
    */

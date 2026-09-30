@@ -70,3 +70,28 @@ describe('useDataImmutable', () => {
     expect(result.current.immutableAgain.data).toEqual('c1:Get:1');
   });
 });
+
+describe('useData key building errors', () => {
+  it('surfaces errors thrown by backend.argKey through SWR error for object and function args', async () => {
+    const backend = createFakeBackend();
+    backend.argKey = (_method, arg) => {
+      if (arg.id === 13) throw new Error('cannot serialize');
+      const { cacheTags, ...rest } = arg;
+      return [rest, cacheTags];
+    };
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result } = renderHook(() => {
+      const object = instance.useData('Get', { id: 13 }, { shouldRetryOnError: false });
+      const thunk = instance.useData('Get', () => ({ id: 13 }), { shouldRetryOnError: false });
+      return { objectError: object.error, thunkError: thunk.error };
+    }, { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.objectError).toBeA(Error);
+      expect(result.current.thunkError).toBeA(Error);
+    });
+    expect(backend.calls).toEqual([]);
+  });
+});
