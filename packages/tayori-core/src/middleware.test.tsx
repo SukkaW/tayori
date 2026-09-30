@@ -1,8 +1,8 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
-import { render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import useSWR, { SWRConfig } from 'swr';
-import type { SWRConfiguration } from 'swr';
+import type { Middleware, SWRConfiguration } from 'swr';
 
 import { createTayori } from '.';
 import { createFakeBackend } from '../test/fake-backend';
@@ -18,7 +18,7 @@ function Isolated({ children }: React.PropsWithChildren) {
   return <SWRConfig value={isolatedSwr}>{children}</SWRConfig>;
 }
 
-describe('SWR middleware', () => {
+describe('SWR fetcher integration', () => {
   it('nested instances of different backends fetch through their own backend and client', async () => {
     const backendA = createFakeBackend('alpha');
     const backendB = createFakeBackend('beta');
@@ -81,38 +81,102 @@ describe('SWR middleware', () => {
       );
     }
 
+    // SWR only re-renders for the fields a render has read, so read `data` during render
     const { result } = renderHook(() => ({
-      tayori: instance.useData<string>('Get', { id: 1 }),
+      tayori: instance.useData<string>('Get', { id: 1 }).data,
       // no fetcher given: SWR falls back to the global one
-      plain: useSWR<string>('plain')
+      plain: useSWR<string>('plain').data
     }), { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(result.current.plain.data).toEqual('hijacked');
-    });
-    await waitFor(() => {
-      expect(result.current.tayori.data).toEqual('c1:Get:1');
+      expect(result.current.plain).toEqual('hijacked');
+      expect(result.current.tayori).toEqual('c1:Get:1');
     });
     expect(backend.calls).toEqual([{ via: 'fetch', client, method: 'Get', arg: { id: 1 }, callOptions: undefined }]);
   });
 
-  it('reports a hook rendered outside of <TayoriProvider /> through SWR error', async () => {
+  it('honours a per-hook fetcher passed in the SWR config', async () => {
+    const backend = createFakeBackend();
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }, { fetcher: () => Promise.resolve('fixture') }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual('fixture');
+    });
+    expect(backend.calls).toEqual([]);
+  });
+
+  it('keeps working under a user SWR middleware that wraps the fetcher (installed above the provider)', async () => {
+    const backend = createFakeBackend();
+    const client: FakeClient = { name: 'c1' };
+    const instance = createTayori(backend);
+    const seen: unknown[] = [];
+
+    // SWR's documented "logger" pattern
+    const logger: Middleware = (useSWRNext) => (key, fetcher, config) => {
+      const extendedFetcher = fetcher
+        ? (...args: unknown[]) => {
+          seen.push(args[0]);
+          return (fetcher as (...a: unknown[]) => unknown)(...args);
+        }
+        : fetcher;
+      return useSWRNext(key, extendedFetcher as typeof fetcher, config);
+    };
+
+    function Wrapper({ children }: React.PropsWithChildren) {
+      return (
+        <SWRConfig value={{ ...isolatedSwr, use: [logger] }}>
+          <instance.TayoriProvider initClient={() => client}>
+            {children}
+          </instance.TayoriProvider>
+        </SWRConfig>
+      );
+    }
+
+    const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual('c1:Get:1');
+    });
+    expect(seen.length).toEqual(1);
+    expect(backend.calls.length).toEqual(1);
+  });
+
+  it('uses the latest call options of the hook when a revalidation happens', async () => {
+    const backend = createFakeBackend();
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result, rerender } = renderHook(
+      ({ header }: { header: string }) => instance.useData<string>('Get', { id: 1 }, undefined, { callOptions: { header } }),
+      { wrapper, initialProps: { header: 'token-1' } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual('c1:Get:1');
+    });
+    expect(backend.calls[0].callOptions).toEqual({ header: 'token-1' });
+
+    // same key, new call options: the next revalidation must use them
+    rerender({ header: 'token-2' });
+    await act(() => result.current.mutate());
+
+    expect(backend.calls.length).toEqual(2);
+    expect(backend.calls[1].callOptions).toEqual({ header: 'token-2' });
+  });
+
+  it('throws synchronously when a hook is rendered outside of <TayoriProvider />', () => {
     const backend = createFakeBackend('lonely');
     const instance = createTayori(backend);
 
-    // The sentinel fetcher throws synchronously while SWR mounts, before anything outside the
-    // render could have read the response. SWR only re-renders for fields a render touched, so
-    // read them during render, exactly like a real component would.
-    const { result } = renderHook(() => {
-      const { data, error } = instance.useData('Get', { id: 1 }, { shouldRetryOnError: false });
-      return { data, error };
-    }, { wrapper: Isolated });
-
-    await waitFor(() => {
-      expect(result.current.error).toBeA(Error);
-    });
-    expect((result.current.error as Error).message).toInclude('lonely', '<TayoriProvider />');
-    expect(result.current.data).toEqual(undefined);
+    expect(() => renderHook(() => instance.useData('Get', { id: 1 }), { wrapper: Isolated }))
+      .toThrow('[lonely] hooks must be used within <TayoriProvider />');
+    expect(() => renderHook(() => instance.useInfinite('Get', () => ({ id: 1 })), { wrapper: Isolated }))
+      .toThrow('[lonely] hooks must be used within <TayoriProvider />');
+    expect(() => renderHook(() => instance.useMutation('Post'), { wrapper: Isolated }))
+      .toThrow('[lonely] hooks must be used within <TayoriProvider />');
     expect(backend.calls).toEqual([]);
   });
 

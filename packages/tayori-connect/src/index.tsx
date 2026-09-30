@@ -1,7 +1,7 @@
 'use client';
 
 import type { DescMessage, DescMethodUnary, JsonValue, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
-import type { Transport } from '@connectrpc/connect';
+import type { CallOptions, Transport } from '@connectrpc/connect';
 import { useCallback } from 'react';
 import type { SWRConfiguration, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
@@ -39,11 +39,17 @@ export interface TayoriConnectOptions extends TayoriConnectCallOptions {
 }
 
 /**
- * Options for `useMutation` and its `trigger()`, mirroring Connect's `CallOptions`
+ * Options for `useMutation()`: tayori's mutation options plus Connect's per-call options
  */
-export interface TayoriConnectMutationOptions<Data> extends UseMutationOptions<Data, unknown>, TayoriConnectTriggerCallOptions {
+export interface TayoriConnectMutationOptions<Data> extends UseMutationOptions<Data, unknown>, TayoriConnectCallOptions {
   cacheTags?: CacheTag[]
 }
+
+/**
+ * Options for `useMutation().trigger()`: everything `useMutation()` accepts, plus an `AbortSignal`
+ * for this specific call. Trigger-level options win over hook-level ones, field by field.
+ */
+export interface TayoriConnectTriggerOptions<Data> extends TayoriConnectMutationOptions<Data>, Pick<CallOptions, 'signal'> {}
 
 /**
  * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", requestAsProtoJson, cacheTags]`
@@ -220,7 +226,7 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
 
     const coreTrigger = mutation.trigger;
     const trigger = useCallback(
-      (input: MessageInitShape<I>, triggerOptions?: TayoriConnectMutationOptions<MessageShape<O>>) => {
+      (input: MessageInitShape<I>, triggerOptions?: TayoriConnectTriggerOptions<MessageShape<O>>) => {
         const { rest: triggerRest, cacheTags: triggerCacheTags, callOptions: triggerCallOptions } = split(triggerOptions);
         return coreTrigger(input, {
           ...(triggerRest as UseMutationOptions<MessageShape<O>, unknown> | undefined),
@@ -336,9 +342,10 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
 
 /**
  * Whether the given SWR key (or SWR key function) was created by tayori-connect. Useful in your
- * own SWR middlewares.
+ * own SWR middlewares. Note that SWR hands middlewares the raw key, which is a function when the
+ * hook was called with a function argument, so check `Array.isArray(key)` before indexing into it.
  */
-export function isTayoriConnectKey(key: unknown): key is TayoriConnectKey {
+export function isTayoriConnectKey(key: unknown): key is TayoriConnectKey | (() => TayoriConnectKey | null) {
   return isTayoriKey(key) && key[kTayoriKey].backend === 'tayori-connect';
 }
 

@@ -163,7 +163,7 @@ data; // SayResponse | undefined
 
 This is the very fundamental API of tayori-connect. It mirrors how you would call a method with a Connect client (`client.say({ sentence: 'Hello' })`), except that the method is passed explicitly: the first argument is a unary method descriptor from your generated code (`ElizaService.method.say`, `PlanetService.method.listPlanets`, etc.), and the second argument is the request message. You pass a plain object, exactly what you would pass to `create(SayRequestSchema, ...)`, there is no need to construct the message yourself. For methods whose request message has no fields, pass an empty object `{}`.
 
-The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`, where the request is serialized to canonical proto3 JSON. Field order and unset fields therefore don't matter: `{ sentence: 'Hello' }` and `{ sentence: 'Hello', extra: undefined }` share the same cache entry.
+The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`, where the request is serialized to canonical proto3 JSON. Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ pageSize: 20 }` and `{ pageSize: 20, pageToken: '' }` share the same cache entry.
 
 We recommend you not to use `useData` directly in your application, instead wrap `useData` with your own custom hooks for better reusability, and consistent request/SWR options across your app.
 
@@ -307,7 +307,7 @@ The supported call options are `headers`, `timeoutMs`, `contextValues`, `onHeade
 
 > **Call options are NOT part of the SWR key**
 >
-> Only the transport, the method, the request message and `cacheTags` identify a request. Two hooks with the same method and request but different `headers` (or `timeoutMs`, ...) share one cache entry and one in-flight request, and the call options of whichever hook triggered the request are used.
+> Only the transport, the method, the request message and `cacheTags` identify a request. Two hooks with the same method and request but different `headers` (or `timeoutMs`, ...) share one cache entry and one in-flight request, and the call options of the hook that started the request are used. A hook always sends its latest call options: if you rotate a token in `headers`, the next revalidation picks it up.
 >
 > If something changes the response of your server, it belongs into the request message. Anything that should apply to every request (auth, tracing, locale) belongs into a transport interceptor.
 
@@ -415,9 +415,9 @@ Write the response message into the `useData` cache entry of the same method and
 
 Only used together with `populateCache`, to target the `useData` cache entry that was created with the same `cacheTags`.
 
-**headers, timeoutMs, contextValues, onHeader, onTrailer, signal**
+**headers, timeoutMs, contextValues, onHeader, onTrailer** (and **signal**, on `trigger` only)
 
-Connect call options, forwarded to the transport. Options passed to `trigger` are merged over the ones passed to `useMutation` field by field (a `headers` passed to `trigger` replaces the `headers` passed to `useMutation`, while the other fields are kept). `signal` lets you abort an in-flight mutation:
+Connect call options, forwarded to the transport. Options passed to `trigger` are merged over the ones passed to `useMutation` field by field (a `headers` passed to `trigger` replaces the `headers` passed to `useMutation`, while the other fields are kept). `signal` is accepted by `trigger` only (an `AbortSignal` belongs to one call) and lets you abort an in-flight mutation:
 
 ```tsx
 const { trigger } = useMutation(PlanetService.method.updatePlanet, {

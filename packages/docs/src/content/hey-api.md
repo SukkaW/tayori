@@ -128,6 +128,8 @@ app/
 > **Using more than one client**
 >
 > `initClient` only runs once per `<TayoriProvider />` instance. If a part of your app talks to a different API, or needs a differently configured client (another `baseUrl`, another auth scheme, ...), nest another `<TayoriProvider initClient={...} />` around that subtree. The Hey API client instance is part of every SWR key, so requests made through different providers get their own cache entries and never collide, even when they call the same SDK method with the same request options.
+>
+> The SWR key of a request is `[client, sdkMethod, requestOptions, cacheTags]`. If you ever need to build one by hand (e.g. for SWR's `mutate()`), `useClient()` returns the client of the nearest `<TayoriProvider />`; and `isInternalSWRKey()` tells tayori requests apart from other SWR requests in your own SWR middleware (SWR hands middlewares the raw key, which is a function when the hook was called with a function argument, so check `Array.isArray(key)` before indexing into it).
 
 ## Data Fetching
 

@@ -2,6 +2,7 @@ import { describe, it, afterEach } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
+import { noop } from 'foxact/noop';
 
 import { createTayori } from '.';
 import { createDeferred, createFakeBackend } from '../test/fake-backend';
@@ -240,5 +241,56 @@ describe('useMutation', () => {
       { header: 'hook', timeoutMs: 100 },
       { header: 'trigger', timeoutMs: 100 }
     ]);
+  });
+});
+
+describe('useMutation trigger stability and validation', () => {
+  it('keeps the same trigger identity across renders even with inline hook-level options', () => {
+    const backend = createFakeBackend();
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result, rerender } = renderHook(
+      () => instance.useMutation('Post', { cacheTags: ['#a'], callOptions: { header: 'x' }, onSuccess: noop }),
+      { wrapper }
+    );
+    const first = result.current.trigger;
+
+    rerender();
+    rerender();
+
+    expect(result.current.trigger).toExactlyEqual(first);
+    expect(result.current.reset).toExactlyEqual(result.current.reset);
+  });
+
+  it('uses the latest hook-level options when trigger() runs', async () => {
+    const backend = createFakeBackend();
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result, rerender } = renderHook(
+      ({ header }: { header: string }) => instance.useMutation('Post', { callOptions: { header } }),
+      { wrapper, initialProps: { header: 'v1' } }
+    );
+    rerender({ header: 'v2' });
+
+    await act(() => result.current.trigger({ id: 1 }));
+
+    expect(backend.calls).toEqual([{ via: 'call', client: { name: 'c1' }, method: 'Post', arg: { id: 1 }, callOptions: { header: 'v2' } }]);
+  });
+
+  it('validates the method before anything is sent', async () => {
+    const backend = createFakeBackend();
+    backend.methodKey = (method) => {
+      if (method === 'Stream') throw new TypeError('only unary methods are supported');
+      return method;
+    };
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result } = renderHook(() => instance.useMutation('Stream'), { wrapper });
+
+    await expect(result.current.trigger({ id: 1 })).toBeRejectedWith(TypeError, 'only unary methods are supported');
+    expect(backend.calls).toEqual([]);
   });
 });

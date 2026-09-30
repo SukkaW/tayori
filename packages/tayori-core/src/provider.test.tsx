@@ -3,7 +3,7 @@ import { expect } from 'earl';
 import { render, renderHook, screen } from '@testing-library/react';
 import sinon from 'sinon';
 
-import { createTayori, isTayoriKey } from '.';
+import { createTayori, isTayoriKey, kTayoriKey } from '.';
 import { createFakeBackend } from '../test/fake-backend';
 import type { FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
@@ -56,25 +56,23 @@ describe('TayoriProvider', () => {
     expect(() => renderHook(() => instance.useClient())).toThrow('[lonely] hooks must be used within <TayoriProvider />');
   });
 
-  it('isKey recognizes keys and key functions built by this instance only', () => {
-    const client: FakeClient = { name: 'c1' };
+  it('getKey builds the branded [client, methodKey, argKey, cacheTags] key of this instance', () => {
     const instance = createTayori(createFakeBackend('one'));
     const other = createTayori(createFakeBackend('two'));
+    const client: FakeClient = { name: 'c1' };
 
-    const key = instance.getKey(client, 'Get', { id: 1 }, undefined);
+    const key = instance.getKey(client, 'Get', { id: 1, cacheTags: ['#a'] }, undefined);
     const thunk = instance.getKey(client, 'Get', () => ({ id: 1 }), undefined);
     const foreign = other.getKey(client, 'Get', { id: 1 }, undefined);
 
-    expect(Array.from(key as Iterable<unknown>)).toEqual([client, 'Get', { id: 1 }, undefined]);
-    expect(instance.isKey(key)).toEqual(true);
-    expect(instance.isKey(thunk)).toEqual(true);
-    expect(instance.isKey(foreign)).toEqual(false);
-    expect(other.isKey(foreign)).toEqual(true);
-    // the instance-agnostic check accepts keys of any instance
+    expect(Array.from(key as Iterable<unknown>)).toEqual([client, 'Get', { id: 1 }, ['#a']]);
+    expect(isTayoriKey(key)).toEqual(true);
+    expect(isTayoriKey(thunk)).toEqual(true);
     expect(isTayoriKey(foreign)).toEqual(true);
-    // an unbranded array with the same slots is not a tayori key
-    expect(instance.isKey([client, 'Get', { id: 1 }, undefined])).toEqual(false);
-    expect(instance.isKey(null)).toEqual(false);
-    expect(instance.token).toEqual({ backend: 'one' });
+    expect((key as NonNullable<typeof key>)[kTayoriKey]).toEqual({ backend: 'one' });
+    expect((foreign as NonNullable<typeof foreign>)[kTayoriKey]).toEqual({ backend: 'two' });
+
+    expect(isTayoriKey([client, 'Get', { id: 1 }, undefined])).toEqual(false);
+    expect(isTayoriKey(null)).toEqual(false);
   });
 });

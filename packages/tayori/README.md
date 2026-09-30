@@ -55,9 +55,9 @@ await trigger({
 ```tsx
 const { data, size, setSize } = useInfinite(
   getAllPlanets,
-  (i, prev) => (prev?.nextCursor
-    ? { query: { cursor: prev.nextCursor, perPage: 20 } }
-    : null)
+  (i, prev) => (i > 0 && !prev?.nextCursor
+    ? null // reached the end
+    : { query: { cursor: prev?.nextCursor, perPage: 20 } })
 );
 ```
 
