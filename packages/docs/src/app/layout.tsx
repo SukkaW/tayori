@@ -4,6 +4,8 @@ import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 import type { Graph, Person, SoftwareSourceCode, WebSite } from 'schema-dts';
 
+import { LLMS_FULL_TXT_ALTERNATE, OG_IMAGE, REPO_URL, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from '@/lib/site';
+
 import '@/styles/globals.css';
 import 'stylex-webpack/stylex.css';
 
@@ -33,10 +35,8 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains-mono'
 });
 
-const SITE_URL = 'https://tayori.skk.moe';
-const SITE_TITLE = 'tayori — React data fetching stack (made by Sukka)';
-const SITE_DESCRIPTION = 'An opinionated React client-side data fetching stack built on top of SWR and Hey API';
-
+// Every page declares its own canonical URL (plus `alternates`, `openGraph` and `twitter`, since
+// Next.js merges metadata shallowly), the root layout only provides site-wide defaults.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
@@ -45,6 +45,9 @@ export const metadata: Metadata = {
     'tayori',
     'SWR',
     'Hey API',
+    'ConnectRPC',
+    'Connect',
+    'protobuf',
     'React',
     'Next.js',
     'TypeScript',
@@ -58,30 +61,16 @@ export const metadata: Metadata = {
   creator: 'Sukka',
   publisher: 'Sukka',
   alternates: {
-    canonical: '/',
-    types: {
-      'text/markdown': [{
-        url: '/llms-full.txt',
-        title: 'LLM friendly version of tayori\'s documentation'
-      }]
-    }
+    types: LLMS_FULL_TXT_ALTERNATE
   },
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: SITE_URL,
-    siteName: 'tayori',
+    siteName: SITE_NAME,
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: [
-      {
-        width: 1200,
-        height: 630,
-        url: `${SITE_URL}/og.png`,
-        alt: 'tayori — An opinionated React client-side data fetching stack built on top of SWR and Hey API',
-        type: 'image/png'
-      }
-    ]
+    images: [OG_IMAGE]
   },
   twitter: {
     card: 'summary_large_image',
@@ -128,7 +117,7 @@ const website: WebSite = {
   '@type': 'WebSite',
   '@id': WEBSITE_ID,
   url: SITE_URL,
-  name: 'tayori',
+  name: SITE_NAME,
   description: SITE_DESCRIPTION,
   inLanguage: 'en-US',
   author: { '@id': PERSON_ID }
@@ -137,12 +126,13 @@ const website: WebSite = {
 const software: SoftwareSourceCode = {
   '@type': 'SoftwareSourceCode',
   '@id': SOFTWARE_ID,
-  name: 'tayori',
-  description: SITE_DESCRIPTION,
+  name: SITE_NAME,
+  description: `${SITE_DESCRIPTION}. Published as the npm packages "tayori" (Hey API mode) and "tayori-connect" (ConnectRPC mode).`,
   url: SITE_URL,
-  codeRepository: 'https://github.com/SukkaW/tayori',
+  codeRepository: REPO_URL,
   programmingLanguage: 'TypeScript',
   runtimePlatform: 'React',
+  keywords: ['SWR', 'Hey API', 'OpenAPI', 'ConnectRPC', 'protobuf', 'React', 'data fetching'],
   license: 'https://opensource.org/licenses/MIT',
   author: { '@id': PERSON_ID }
 };

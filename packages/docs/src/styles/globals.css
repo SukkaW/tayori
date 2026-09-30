@@ -6,10 +6,6 @@
   padding: 0;
 }
 
-.bento-card pre.shiki {
-  height: 100%; /* fit in grid */
-}
-
 .bento-card pre.shiki,
 .code-wrap pre.shiki {
   overflow-x: auto !important;
@@ -18,6 +14,16 @@
   padding: 16px 20px !important;
   /* white-space: pre; */
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Bento cards carry their own background, border and a mode label above the snippet,
+   so the <pre> only needs to fill the remaining height of the card */
+.bento-card pre.shiki {
+  flex: 1 1 auto;
+  border-radius: 0 !important;
+  border: 0;
+  padding-top: 10px !important;
+  background-color: transparent !important;
 }
 
 .bento-card pre.shiki code,

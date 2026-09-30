@@ -125,13 +125,17 @@ app/
 └── layout.tsx              ← your root layout with <html /> and <body />
 ```
 
+> **Using more than one client**
+>
+> `initClient` only runs once per `<TayoriProvider />` instance. If a part of your app talks to a different API, or needs a differently configured client (another `baseUrl`, another auth scheme, ...), nest another `<TayoriProvider initClient={...} />` around that subtree. The Hey API client instance is part of every SWR key, so requests made through different providers get their own cache entries and never collide, even when they call the same SDK method with the same request options.
+
 ## Data Fetching
 
 ```tsx
 import { useData, usePreload } from './lib/tayori';
 import { getAllPlanets } from 'path/to/hey-api-generated-sdk';
 
-const preload = usePreload(getAllPlanets);
+const preload = usePreload();
 
 const { data, error, isLoading, mutate } = useData(
   getAllPlanets,
@@ -311,7 +315,7 @@ import { useMutation } from './lib/tayori';
 import { createPlanet } from 'path/to/hey-api-generated-sdk';
 
 function PlanetCreationForm() {
-  const { mutate: mutateAllPlanets } = useGetAllPlanets();
+  const { mutate: mutateAllPlanets } = useAllPlanets();
   const { trigger, data, error, isMutating, reset } = useMutation(
     createPlanet,
     {/* optional mutation options */}
@@ -348,6 +352,8 @@ function PlanetCreationForm() {
 > Internally, `useData` includes the SDK method function as part of the SWR key, while Hey API typically generates separate SDK methods for fetching and mutating data (e.g. `getPlanetById` for fetching and `createPlanet` for mutating). This means that we can't automatically infer which SWR cache to invalidate after a mutation, so you need to call `mutate` manually to revalidate the relevant SWR cache after a mutation.
 >
 > We are working with Hey API to expose more metadata information on the SDK methods, so we might be able to automatically revalidate the proper `useData` cache in the future.
+>
+> If you would rather not keep a reference to the right `mutate` around, tag your requests with [cache tags](#cache-tags) and call `unstable_mutateWithTags` instead.
 
 We also recommend you to wrap `useMutation` with your own custom hooks for better reusability, just like `useData`.
 
@@ -388,6 +394,54 @@ Callback function when a remote mutation has thrown an error.
 >
 > 1. As mentioned above, Hey API typically generates separate SDK methods for fetching and mutating data, thus `useMutation` and `useData` will never share the same SWR key, there is no point to build `useMutation` on top of `useSWRMutation`
 > 2. Due to a bug of `useSWRMutation` ([vercel/swr#4247](https://github.com/vercel/swr/issues/4247)), `isMutating` will never change to `true` when `trigger` is called within an React transition (e.g. `<form action />`'s `action` prop). You can find more details about the reason behind that in the issue thread. tayori, on the other hand, implements a workaround to make sure `isMutating` works as expected even within `<form action />`.
+
+### Cache Tags
+
+Calling `mutate` after every `trigger` works, but it couples the mutation to whichever `useData` hook happens to be mounted nearby. Cache tags let you revalidate requests by name instead: tag the requests when you make them, then call `unstable_mutateWithTags` with the same tags after a mutation.
+
+Tags are passed inside the request options of `useData`, `useDataImmutable` and `useInfinite`, next to Hey API's own `path` / `query` / `body`, and must start with `#`:
+
+```tsx
+import { unstable_mutateWithTags } from 'tayori';
+
+export const useAllPlanets = (pageIndex?: number, perPage?: number) => {
+  return useData(getAllPlanets, {
+    query: { page: pageIndex, per_page: perPage },
+    cacheTags: ['#planets'] // [!code highlight]
+  });
+};
+
+export const useCreatePlanet = () => useMutation(createPlanet, {
+  onSuccess() {
+    // revalidate every mounted request tagged with "#planets",
+    // no matter which page / perPage it was requested with
+    unstable_mutateWithTags(['#planets']); // [!code highlight]
+  }
+});
+```
+
+`unstable_mutateWithTags` revalidates every tayori request whose `cacheTags` share at least one tag with the given list. tayori strips `cacheTags` before forwarding the request options to the Hey API SDK, so they never reach your server.
+
+A few things to keep in mind:
+
+- Tags are part of the SWR key. `useData(getAllPlanets, { query })` and `useData(getAllPlanets, { query, cacheTags: ['#planets'] })` are two different cache entries, so tag consistently, ideally inside your custom hooks.
+- `unstable_mutateWithTags` uses SWR's global `mutate` under the hood, so it only reaches the default SWR cache. Tagged requests living in a custom cache `provider` (configured through `<SWRConfig />`) will not be revalidated. See the hook variant below.
+- Pages loaded by `useInfinite` are matched by their tags, but the aggregated list returned by `useInfinite` is not refetched yet (SWR's filter-based `mutate` skips `useSWRInfinite` keys). Use the `mutate` returned by `useInfinite` for now.
+- As the `unstable_` prefix suggests, the API may still change in a minor release.
+
+Inside React, prefer the `unstable_useMutateWithTags()` hook. It returns the same function bound to the cache provider of the nearest `<SWRConfig />`, so it also works with a custom cache `provider`:
+
+```tsx
+import { unstable_useMutateWithTags } from 'tayori';
+
+const invalidateTags = unstable_useMutateWithTags();
+const { data } = useData(getAllPlanets, { query: {}, cacheTags: ['#planets'] });
+const { trigger } = useMutation(createPlanet);
+
+// Inside the submission handler:
+await trigger({ body: formData });
+await invalidateTags(['#planets']);
+```
 
 ### Fetching within an Event Handler
 
@@ -432,26 +486,6 @@ const { trigger, isMutating } = useMutation(getPlanetById, { populateCache: true
 trigger({ query: { id: 'earth' } }, { populateCache: true });
 ```
 
-### Cache Tag Invalidation
-
-Add `cacheTags` to queries that must refresh together. After a successful mutation, call the function returned by `unstable_useMutateWithTags` with the affected tags.
-
-```tsx
-import { unstable_useMutateWithTags } from 'tayori';
-
-const invalidateTags = unstable_useMutateWithTags();
-const { data } = useData(getAllPlanets, { cacheTags: ['#planets'] });
-const { trigger } = useMutation(createPlanet);
-
-// Inside the submission handler:
-await trigger({ body: formData });
-await invalidateTags(['#planets']);
-```
-
-The hook uses the nearest `SWRConfig` cache provider. The standalone `unstable_mutateWithTags` function uses only SWR's default cache.
-
-For `useInfinite`, use the `mutate` function returned by that hook to refresh the loaded pages. Tag invalidation does not revalidate the infinite list's aggregate cache.
-
 ## Pagination and Infinite Loading
 
 Typically, you can achieve pagination with `useData` by passing the parameters as the request options:
@@ -472,7 +506,7 @@ You can even preload the next page data by abstracting the page as a dedicated c
 
 ```tsx
 function Page({ index, perPage }) {
-  const { data } = useGetAllPlanets(index, perPage);
+  const { data } = useAllPlanets(index, perPage);
   return data.map(item => <div key={item.id}>{item.name}</div>)
 }
 function App () {
@@ -492,7 +526,7 @@ You can use the same technique for simple infinite loading like "Load More" butt
 
 ```tsx
 function Page({ index }) {
-  const { data } = useGetAllPlanets(index);
+  const { data } = useAllPlanets(index);
   return data.map(item => <div key={item.id}>{item.name}</div>)
 }
 function App() {
@@ -627,7 +661,7 @@ You can only use tayori hooks within Client Components. You should add `'use cli
 import { useData } from './lib/tayori';
 
 function MyComponent() {
-  const { data } = useGetAllPlanets();
+  const { data } = useAllPlanets();
 }
 ```
 
@@ -664,7 +698,7 @@ If you don't provide `fallbackData`, the initial `data` will be `undefined` and 
 'use client';
 
 function ClientComponent() {
-  const { data, isLoading } = useGetAllPlanets();
+  const { data, isLoading } = useAllPlanets();
   if (isLoading) { // also true on the server and during client hydration
     return <div>Loading...</div>;
   }

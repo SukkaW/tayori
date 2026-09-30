@@ -1,0 +1,47 @@
+// Test-only schema for tayori-connect. Regenerate with `pnpm --filter tayori-connect generate`.
+syntax = "proto3";
+
+package tayori.test.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service TestService {
+  // Unary: echoes the request back, used by most hook tests
+  rpc Echo(EchoRequest) returns (EchoResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Unary with side effects, used by mutation tests
+  rpc Update(EchoRequest) returns (EchoResponse) {}
+  // Server streaming: tayori-connect must reject this at runtime
+  rpc Stream(EchoRequest) returns (stream EchoResponse) {}
+}
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_A = 1;
+  KIND_B = 2;
+}
+
+message Nested {
+  string value = 1;
+}
+
+message EchoRequest {
+  string text = 1;
+  int64 big = 2;
+  bytes blob = 3;
+  google.protobuf.Timestamp at = 4;
+  repeated string tags = 5;
+  map<string, int32> counts = 6;
+  Kind kind = 7;
+  Nested nested = 8;
+  string page_token = 9;
+}
+
+message EchoResponse {
+  string text = 1;
+  int64 big = 2;
+  string next_page_token = 3;
+  // Echoes selected request headers back, so tests can assert call options reached the server
+  map<string, string> received_headers = 4;
+}

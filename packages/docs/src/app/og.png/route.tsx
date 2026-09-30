@@ -2,13 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 
+import { REPO_URL, SITE_DESCRIPTION, SITE_URL } from '@/lib/site';
+
 function fontsourceFile(pkg: string, file: string) {
   return readFile(join(process.cwd(), 'node_modules', pkg, 'files', file));
 }
 
-const SITE_URL = 'https://tayori.skk.moe';
-const REPO_URL = 'https://github.com/SukkaW/tayori';
-const DESCRIPTION = 'An opinionated React client-side data fetching stack built on top of SWR and Hey API.';
+const DESCRIPTION = `${SITE_DESCRIPTION}.`;
 
 export async function GET() {
   const [
@@ -84,7 +84,7 @@ export async function GET() {
             style={{
               display: 'flex',
               marginTop: 64,
-              fontSize: 36,
+              fontSize: 32,
               color: '#6a7282',
               lineHeight: 1.4,
               maxWidth: 920,
