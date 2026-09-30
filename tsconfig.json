@@ -1,6 +1,8 @@
 {
   "references": [
+    { "path": "packages/tayori-core" },
     { "path": "packages/tayori" },
+    { "path": "packages/tayori-connect" },
     { "path": "packages/example-nextjs-app" },
     { "path": "packages/docs" }
   ],

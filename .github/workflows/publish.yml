@@ -10,7 +10,7 @@ on:
       - LICENSE
       - "**/*.gitignore"
       - .editorconfig
-      - docs/**
+      - packages/docs/**
   pull_request: null
 jobs:
   publish:
@@ -35,6 +35,8 @@ jobs:
       - run: pnpm config set --location=global minimumReleaseAge 0
       - run: pnpm install
       - run: pnpm run build
+      - run: pnpm run lint
+      - run: pnpm run typecheck
       - run: pnpm run test
       - name: Publish
         run: |

@@ -2,15 +2,27 @@ import { cache } from 'react';
 import { foxmd, tocArrayToTree } from 'foxmd';
 
 import { docsMarkdownRendererOptions } from '../components/docs-markdown';
+import type { DocsSlug } from './docs';
 
 // @ts-expect-error -- intentional usage for React Fast Refresh support
 // eslint-disable-next-line import-x/no-webpack-loader-syntax, import-x/no-unresolved -- intentional usage
-import CONTENT from '!!raw-loader!@/_doc.md';
+import HEY_API_CONTENT from '!!raw-loader!@/content/hey-api.md';
+// @ts-expect-error -- intentional usage for React Fast Refresh support
+// eslint-disable-next-line import-x/no-webpack-loader-syntax, import-x/no-unresolved -- intentional usage
+import CONNECT_CONTENT from '!!raw-loader!@/content/connect.md';
 
-export const getRawContent = () => CONTENT;
+export type { DocsSlug } from './docs';
 
-export const getContent = cache(function getContent() {
-  const { jsx, toc: tocObj } = foxmd(CONTENT, {
+const RAW_CONTENT: Record<DocsSlug, string> = {
+  'hey-api': HEY_API_CONTENT,
+  connect: CONNECT_CONTENT
+};
+
+export const getRawContent = (slug: DocsSlug): string => RAW_CONTENT[slug];
+
+export const getContent = cache(function getContent(slug: DocsSlug) {
+  // Every foxmd() call has its own slugger, so heading ids are stable per document
+  const { jsx, toc: tocObj } = foxmd(getRawContent(slug), {
     foxmdRendererOptions: {
       ...docsMarkdownRendererOptions
     },

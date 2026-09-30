@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
 allowBuilds:
+  '@bufbuild/buf': true
   '@swc/core': true
   sharp: true
   unrs-resolver: true

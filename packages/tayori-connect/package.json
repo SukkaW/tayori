@@ -1,0 +1,76 @@
+{
+  "name": "tayori-connect",
+  "version": "0.3.8",
+  "description": "SWR-powered React data fetching hooks for ConnectRPC (@connectrpc/connect v2 + @bufbuild/protobuf v2), built on tayori-core",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SukkaW/tayori",
+    "directory": "packages/tayori-connect"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "bunchee --minify --no-sourcemap",
+    "lint": "eslint --format=sukka .",
+    "test": "SWC_NODE_IGNORE_DYNAMIC=1 SWC_NODE_INLINE_SOURCE_MAP=1 nyc mocha --require @swc-node/register --require test/setup.ts --full-trace 'src/**/*.test.{ts,tsx}'",
+    "generate": "buf generate"
+  },
+  "keywords": [
+    "SWR",
+    "ConnectRPC",
+    "Connect",
+    "protobuf",
+    "React",
+    "TypeScript"
+  ],
+  "author": "Sukka <https://skk.moe>",
+  "license": "MIT",
+  "dependencies": {
+    "tayori-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.73.0",
+    "@bufbuild/protobuf": "^2.16.0",
+    "@bufbuild/protoc-gen-es": "^2.16.0",
+    "@connectrpc/connect": "^2.2.0",
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "^1.16.2",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.13.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/sinon": "^22.0.0",
+    "bunchee": "^6.12.2",
+    "earl": "^2.0.0",
+    "happy-dom": "^20.14.5",
+    "mocha": "^12.0.2",
+    "nyc": "^18.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sinon": "^22.1.0",
+    "swr": "^2.5.1"
+  },
+  "peerDependencies": {
+    "@bufbuild/protobuf": "^2.7.0",
+    "@connectrpc/connect": "^2.0.0",
+    "react": ">=19.2.0",
+    "swr": "^2.4.0"
+  }
+}
