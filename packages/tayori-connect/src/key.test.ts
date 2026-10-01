@@ -233,6 +233,26 @@ describe('tayori-connect SWR keys', () => {
   });
 });
 
+describe('headers in the key', () => {
+  it('uses the plain request JSON without headers and a [request, headers] pair with them', () => {
+    const backend = createConnectBackend();
+    expect(backend.argKey(TestService.method.echo, { text: 'a' }, undefined)).toEqual([{ text: 'a' }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { headers: {} })).toEqual([{ text: 'a' }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { timeoutMs: 5000 })).toEqual([{ text: 'a' }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'X-Tenant': 't1', 'accept-language': 'ja' } }))
+      .toEqual([[{ text: 'a' }, { 'accept-language': 'ja', 'x-tenant': 't1' }], undefined]);
+  });
+
+  it('normalizes header names and order so equivalent headers hash the same', () => {
+    const backend = createConnectBackend();
+    const [a] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'X-Tenant': 't1', 'Accept-Language': 'ja' } });
+    const [b] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: new Headers([['accept-language', 'ja'], ['x-tenant', 't1']]) });
+    const [c] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'x-tenant': 't2' } });
+    expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
+    expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(c as never));
+  });
+});
+
 describe('isTayoriConnectKey', () => {
   it('rejects keys that were not built by tayori-connect', () => {
     expect(isTayoriConnectKey(null)).toEqual(false);
@@ -276,9 +296,9 @@ describe('createConnectBackend', () => {
     const packed = anyPack(EchoRequestSchema, create(EchoRequestSchema, { text: 'inside' }));
 
     it('is required to build a key for a populated google.protobuf.Any input', () => {
-      expect(() => createConnectBackend().argKey(wrap, packed)).toThrow('is not in the type registry');
+      expect(() => createConnectBackend().argKey(wrap, packed, undefined)).toThrow('is not in the type registry');
       // an empty Any needs no registry
-      expect(createConnectBackend().argKey(wrap, {})).toEqual([{}, undefined]);
+      expect(createConnectBackend().argKey(wrap, {}, undefined)).toEqual([{}, undefined]);
     });
 
     it('surfaces the missing registry through SWR error for object and thunk inputs alike', async () => {
@@ -299,7 +319,7 @@ describe('createConnectBackend', () => {
 
     it('encodes the Any for the key and decodes it again for the request', async () => {
       const backend = createConnectBackend({ registry });
-      const [argKey] = backend.argKey(wrap, packed);
+      const [argKey] = backend.argKey(wrap, packed, undefined);
       expect(argKey).toEqual({ '@type': 'type.googleapis.com/tayori.test.v1.EchoRequest', text: 'inside' });
 
       const transport = createRouterTransport(({ rpc }) => {

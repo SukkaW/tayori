@@ -19,14 +19,14 @@ const backend: Pick<TayoriBackend<string, { id: number, cacheTags?: Array<`#${st
 
 describe('getKey', () => {
   it('returns null for falsy args', () => {
-    expect(getKey(token, backend, client, 'Get', 'svc/Get', null, undefined)).toEqual(null);
-    expect(getKey(token, backend, client, 'Get', 'svc/Get', undefined, undefined)).toEqual(null);
-    expect(getKey(token, backend, client, 'Get', 'svc/Get', false, undefined)).toEqual(null);
-    expect(getKey(token, backend, client, 'Get', 'svc/Get', 0, undefined)).toEqual(null);
+    expect(getKey(token, backend, client, 'Get', 'svc/Get', null, undefined, undefined)).toEqual(null);
+    expect(getKey(token, backend, client, 'Get', 'svc/Get', undefined, undefined, undefined)).toEqual(null);
+    expect(getKey(token, backend, client, 'Get', 'svc/Get', false, undefined, undefined)).toEqual(null);
+    expect(getKey(token, backend, client, 'Get', 'svc/Get', 0, undefined, undefined)).toEqual(null);
   });
 
   it('builds a branded [client, methodKey, argKey, cacheTags] array', () => {
-    const key = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1, cacheTags: ['#a'] }, undefined);
+    const key = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1, cacheTags: ['#a'] }, undefined, undefined);
 
     expect(Array.isArray(key)).toEqual(true);
     expect(plain(key)).toEqual([client, 'svc/Get', { id: 1 }, ['#a']]);
@@ -38,12 +38,12 @@ describe('getKey', () => {
   });
 
   it('prefers the cacheTags passed by the hook options over arg-level cacheTags', () => {
-    const key = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1, cacheTags: ['#a'] }, ['#b']);
+    const key = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1, cacheTags: ['#a'] }, ['#b'], undefined);
     expect(plain(key)).toEqual([client, 'svc/Get', { id: 1 }, ['#b']]);
   });
 
   it('brands both the key function and the arrays it returns', () => {
-    const thunk = getKey(token, backend, client, 'Get', 'svc/Get', () => ({ id: 2 }), undefined);
+    const thunk = getKey(token, backend, client, 'Get', 'svc/Get', () => ({ id: 2 }), undefined, undefined);
 
     expect(typeof thunk).toEqual('function');
     expect(isTayoriKey(thunk)).toEqual(true);
@@ -54,15 +54,15 @@ describe('getKey', () => {
   });
 
   it('key function returns null when the arg function returns a falsy value', () => {
-    const thunk = getKey(token, backend, client, 'Get', 'svc/Get', () => null, undefined) as () => unknown;
+    const thunk = getKey(token, backend, client, 'Get', 'svc/Get', () => null, undefined, undefined) as () => unknown;
     expect(thunk()).toEqual(null);
   });
 
   it('different clients produce different SWR hashes, same client the same hash', () => {
     const otherClient = { name: 'other' };
-    const a = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined);
-    const b = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined);
-    const c = getKey(token, backend, otherClient, 'Get', 'svc/Get', { id: 1 }, undefined);
+    const a = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined, undefined);
+    const b = getKey(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined, undefined);
+    const c = getKey(token, backend, otherClient, 'Get', 'svc/Get', { id: 1 }, undefined, undefined);
 
     expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
     expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(c as never));
@@ -70,6 +70,21 @@ describe('getKey', () => {
 });
 
 describe('buildKeyArray', () => {
+  it('hands the call options to backend.argKey so backends can make parts of them key-relevant', () => {
+    const seen: unknown[] = [];
+    const recording: Pick<TayoriBackend<string, { id: number }, unknown, typeof client, { header: string }>, 'argKey'> = {
+      argKey(_method, arg, callOptions) {
+        seen.push(callOptions);
+        return [[arg, callOptions?.header], undefined];
+      }
+    };
+
+    const key = buildKeyArray(token, recording, client, 'Get', 'svc/Get', { id: 1 }, undefined, { header: 'v1' });
+
+    expect(seen).toEqual([{ header: 'v1' }]);
+    expect(plain(key)).toEqual([client, 'svc/Get', [{ id: 1 }, 'v1'], undefined]);
+  });
+
   const failing: typeof backend = {
     argKey() {
       throw new Error('cannot serialize');
@@ -77,7 +92,7 @@ describe('buildKeyArray', () => {
   };
 
   it('captures errors thrown by backend.argKey into the key instead of throwing', () => {
-    const key = buildKeyArray(token, failing, client, 'Get', 'svc/Get', { id: 1 }, ['#a']);
+    const key = buildKeyArray(token, failing, client, 'Get', 'svc/Get', { id: 1 }, ['#a'], undefined);
 
     expect(isTayoriKey(key)).toEqual(true);
     expect(plain(key)).toEqual([client, 'svc/Get', { tayoriKeyError: 'Error: cannot serialize' }, ['#a']]);
@@ -87,11 +102,11 @@ describe('buildKeyArray', () => {
     expect(keyError.hasError && (keyError.error as Error).message).toEqual('cannot serialize');
     // the captured error is hidden from SWR's hash, the message-bearing slot keeps the hash stable
     expect(Object.keys(key)).toEqual(['0', '1', '2', '3']);
-    expect(unstable_serialize(key as never)).toEqual(unstable_serialize(buildKeyArray(token, failing, client, 'Get', 'svc/Get', { id: 1 }, ['#a']) as never));
+    expect(unstable_serialize(key as never)).toEqual(unstable_serialize(buildKeyArray(token, failing, client, 'Get', 'svc/Get', { id: 1 }, ['#a'], undefined) as never));
   });
 
   it('marks healthy keys as error-free', () => {
-    const key = buildKeyArray(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined);
+    const key = buildKeyArray(token, backend, client, 'Get', 'svc/Get', { id: 1 }, undefined, undefined);
     expect(getKeyError(key)).toEqual({ hasError: false });
   });
 });

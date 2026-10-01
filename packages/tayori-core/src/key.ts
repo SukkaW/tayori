@@ -73,17 +73,18 @@ export function getKeyError(key: object): { hasError: true, error: unknown } | {
  * captured into the key (see `kTayoriKeyError`) rather than thrown, so that they surface the
  * same way for object arguments, function arguments and infinite loaders.
  */
-export function buildKeyArray<Method, Arg, Client>(
+export function buildKeyArray<Method, Arg, Client, CallOptions>(
   token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, unknown>, 'argKey'>,
+  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, CallOptions>, 'argKey'>,
   client: Client,
   method: Method,
   methodKey: unknown,
   arg: Arg,
-  cacheTagsFromOptions: CacheTag[] | undefined
+  cacheTagsFromOptions: CacheTag[] | undefined,
+  callOptions: CallOptions | undefined
 ): BrandedTayoriKey<Client> {
   try {
-    const [argKey, cacheTagsFromArg] = backend.argKey(method, arg);
+    const [argKey, cacheTagsFromArg] = backend.argKey(method, arg, callOptions);
     const key: TayoriKey<Client> = [client, methodKey, argKey, cacheTagsFromOptions ?? cacheTagsFromArg];
     return brand(key, token);
   } catch (error) {
@@ -107,14 +108,15 @@ export function buildKeyArray<Method, Arg, Client>(
  *   semantics, a function that throws or returns a falsy value pauses the request.
  * - anything else becomes a branded key array
  */
-export function getKey<Method, Arg, Client>(
+export function getKey<Method, Arg, Client, CallOptions>(
   token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, unknown>, 'argKey'>,
+  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, CallOptions>, 'argKey'>,
   client: Client,
   method: Method,
   methodKey: unknown,
   arg: Arg | Falsy | (() => Arg | Falsy),
-  cacheTagsFromOptions: CacheTag[] | undefined
+  cacheTagsFromOptions: CacheTag[] | undefined,
+  callOptions: CallOptions | undefined
 ): BrandedTayoriKey<Client> | BrandedTayoriKeyThunk<Client> | null {
   if (!arg) return null;
 
@@ -122,10 +124,10 @@ export function getKey<Method, Arg, Client>(
     const thunk: TayoriKeyThunk<Client> = () => {
       const resolvedArg = (arg as () => Arg | Falsy)();
       if (!resolvedArg) return null;
-      return buildKeyArray(token, backend, client, method, methodKey, resolvedArg, cacheTagsFromOptions);
+      return buildKeyArray(token, backend, client, method, methodKey, resolvedArg, cacheTagsFromOptions, callOptions);
     };
     return brand(thunk, token) as BrandedTayoriKeyThunk<Client>;
   }
 
-  return buildKeyArray(token, backend, client, method, methodKey, arg, cacheTagsFromOptions);
+  return buildKeyArray(token, backend, client, method, methodKey, arg, cacheTagsFromOptions, callOptions);
 }

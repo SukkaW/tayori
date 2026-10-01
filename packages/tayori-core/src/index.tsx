@@ -92,7 +92,7 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
    * Build the exact SWR key a hook of this instance would use for `method` + `arg`.
    */
   function buildKey(client: Client, method: Method, arg: Arg | Falsy | (() => Arg | Falsy), options: Options | undefined) {
-    return getKey(token, backend, client, method, backend.methodKey(method), arg, options?.cacheTags);
+    return getKey(token, backend, client, method, backend.methodKey(method), arg, options?.cacheTags, options?.callOptions);
   }
 
   /**
@@ -156,7 +156,7 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
         if (!result) {
           return null;
         }
-        return buildKeyArray(token, backend, client, method, methodKey, result, options?.cacheTags);
+        return buildKeyArray(token, backend, client, method, methodKey, result, options?.cacheTags, options?.callOptions);
       },
       token
     );

@@ -26,6 +26,35 @@ export type AnyMessage = MessageShape<DescMessage>;
 export type TayoriConnectMethodKey = `${string}/${string}`;
 
 /**
+ * Slot 2 of a tayori-connect SWR key: the request message as canonical proto3 JSON, or, when the
+ * hook was given `headers`, a `[request, headers]` pair (header names lower-cased and sorted).
+ * Like in Hey API mode, headers identify a request; the other call options don't.
+ */
+export type TayoriConnectArgKey = JsonValue | [request: JsonValue, headers: Record<string, string>];
+
+/**
+ * A plain, sorted record of the given headers, or `undefined` when there are none
+ */
+function headersKey(init: HeadersInit | undefined): Record<string, string> | undefined {
+  if (init === undefined) return undefined;
+  // `Headers` accepts every HeadersInit shape and joins duplicate names. Names are lower-cased and
+  // sorted here rather than relying on the environment's `Headers` to do it (not every DOM
+  // implementation follows the spec there), since the result feeds SWR's key hash.
+  const entries: Array<[name: string, value: string]> = [];
+  for (const [name, value] of new Headers(init)) {
+    entries.push([name.toLowerCase(), value]);
+  }
+  if (entries.length === 0) return undefined;
+  entries.sort(([a], [b]) => (a < b ? -1 : (a > b ? 1 : 0)));
+  const result: Record<string, string> = {};
+  for (let i = 0, len = entries.length; i < len; i++) {
+    const [name, value] = entries[i];
+    result[name] = value;
+  }
+  return result;
+}
+
+/**
  * Slot 1 of a tayori-connect SWR key. Also validates that the method is unary: streaming methods
  * are not supported (yet).
  */
@@ -79,8 +108,17 @@ export function createConnectBackend({ registry }: TayoriConnectBackendOptions =
     methodKey: getMethodKey,
     // Canonical proto3 JSON: unset / default fields are omitted, 64-bit integers become strings,
     // bytes become base64, well-known types use their JSON mapping. Equivalent inits yield equal keys.
-    argKey: (method, init) => [toJson(method.input, create(method.input, init), jsonOptions), undefined],
-    fetch: (transport, method, argKey, callOptions) => unary(transport, method, fromJson(method.input, argKey as JsonValue, jsonOptions), callOptions),
+    // Headers are part of the key as well (a request with different headers may get a different response).
+    argKey(method, init, callOptions) {
+      const request = toJson(method.input, create(method.input, init), jsonOptions);
+      const headers = headersKey(callOptions?.headers);
+      return [headers ? [request, headers] satisfies TayoriConnectArgKey : request, undefined];
+    },
+    fetch(transport, method, argKey, callOptions) {
+      // a message is never serialized to a JSON array, so the pair is unambiguous
+      const request = Array.isArray(argKey) ? (argKey as [JsonValue, unknown])[0] : argKey as JsonValue;
+      return unary(transport, method, fromJson(method.input, request, jsonOptions), callOptions);
+    },
     call: unary
   };
 }
