@@ -712,3 +712,12 @@ function ClientComponent() {
 
 When first loading the page, the user will immediately see the loading UI. After React hydration, tayori hooks will begin fetching data and re-render the component with the actual data accordingly.
 
+## Upgrading from 0.3.x
+
+tayori 0.4.0 splits the project into `tayori-core` (the shared runtime), `tayori` (Hey API mode, this page) and [`tayori-connect`](/connect) (ConnectRPC mode). The Hey API hooks keep their signatures, but a few behaviours changed:
+
+- **SWR key layout.** Keys are now `[client, sdkMethod, requestOptions, cacheTags]`: the Hey API client instance comes first (it was `[sdkMethod, requestOptions, cacheTags]`). Middlewares that destructure a key after `isInternalSWRKey()` must shift by one slot, and keys built by hand (for SWR's `mutate()` or `fallback`) need the client, which the new `useClient()` hook returns. `isInternalSWRKey()` also narrows to the `useInfinite` key loader when SWR hands it one, so check `Array.isArray(key)` before indexing.
+- **Hooks outside `<TayoriProvider />` throw.** `useData`, `useDataImmutable` and `useInfinite` used to silently never fetch when no provider was mounted; they now throw at render with a clear message, like `useMutation` and `usePreload` already did.
+- **`kyOptions.throwHttpErrors` is forced for mutations too.** `useData` already set it for `@hey-api/client-ky`; `useMutation().trigger()` now goes through the same code path, so non-2xx responses always throw.
+- **Tag invalidation reaches more entries.** `unstable_mutateWithTags()` now also revalidates requests whose options were passed as a function, and the new `unstable_useMutateWithTags()` hook uses the cache provider of the nearest `<SWRConfig />`.
+- **Fetchers.** A `fetcher` passed in a hook's own SWR options is honoured (handy for tests and stories), while a global `fetcher` in `<SWRConfig />` is no longer applied to tayori requests.

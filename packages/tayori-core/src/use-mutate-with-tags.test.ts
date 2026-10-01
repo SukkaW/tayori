@@ -6,9 +6,10 @@ import { mutate } from 'swr';
 import { createTayori, isTayoriKey, unstable_mutateWithTags, unstable_useMutateWithTags } from '.';
 import { createFakeBackend } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
+import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
 
 describe('useMutateWithTags', () => {
-  afterEach(() => mutate(isTayoriKey, undefined, { revalidate: false }));
+  afterEach(() => clearTayoriDefaultCache());
 
   it('revalidates tagged entries in the nearest SWR cache provider, which the global mutateWithTags cannot reach', async () => {
     const backend = createFakeBackend();

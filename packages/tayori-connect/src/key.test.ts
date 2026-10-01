@@ -289,7 +289,7 @@ describe('createConnectBackend().argKey', () => {
   it('puts the message under `message` and only adds `headers` when the request has any', () => {
     expect(backend.argKey(TestService.method.echo, { message: { text: 'a' } })).toEqual([{ message: { text: 'a' } }, undefined]);
     // no `message` at all: an empty request message
-    expect(backend.argKey(TestService.method.echo, {})).toEqual([{ message: {} }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message: {} })).toEqual([{ message: {} }, undefined]);
     // empty headers are no headers
     expect(backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: {} })).toEqual([{ message: { text: 'a' } }, undefined]);
     expect(backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: new Headers() })).toEqual([{ message: { text: 'a' } }, undefined]);
@@ -370,24 +370,17 @@ describe('createConnectBackend', () => {
     it('is required to build a key for a populated google.protobuf.Any message', () => {
       expect(() => createConnectBackend().argKey(wrap, { message: packed })).toThrow('is not in the type registry');
       // an empty Any needs no registry
-      expect(createConnectBackend().argKey(wrap, {})).toEqual([{ message: {} }, undefined]);
+      expect(createConnectBackend().argKey(wrap, { message: {} })).toEqual([{ message: {} }, undefined]);
       expect(createConnectBackend().argKey(wrap, { message: {} })).toEqual([{ message: {} }, undefined]);
     });
 
-    it('surfaces the missing registry through SWR error for object and thunk requests alike', async () => {
+    it('throws at render when the registry is missing, for object and thunk requests alike', () => {
       const { wrapper } = setup();
 
-      const { result } = renderHook(() => ({
-        object: useData(wrap, { message: packed }, { shouldRetryOnError: false }),
-        thunk: useData(wrap, () => ({ message: packed }), { shouldRetryOnError: false })
-      }), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.object.error).toBeA(Error);
-        expect(result.current.thunk.error).toBeA(Error);
-      });
-      expect(String(result.current.object.error)).toInclude('is not in the type registry');
-      expect(String(result.current.thunk.error)).toInclude('is not in the type registry');
+      // a key that cannot be built is a configuration error: it fails loudly instead of becoming
+      // an SWR error that would be retried forever
+      expect(() => renderHook(() => useData(wrap, { message: packed }), { wrapper })).toThrow('is not in the type registry');
+      expect(() => renderHook(() => useData(wrap, () => ({ message: packed })), { wrapper })).toThrow('is not in the type registry');
     });
 
     it('serializes the Any for the key and sends the original message', async () => {

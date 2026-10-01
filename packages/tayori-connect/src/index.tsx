@@ -155,28 +155,7 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
     method: DescMethodUnary<I, O>,
     options?: UseMutationOptions<MessageShape<O>, unknown>
   ) {
-    const mutation = core.useMutation<MessageShape<O>>(method, options);
-    // Narrow the request type to this method's input message (an assignment, not an assertion)
-    const trigger: (
-      request: TayoriConnectMutationRequest<I>,
-      triggerOptions?: UseMutationOptions<MessageShape<O>, unknown>
-    ) => Promise<MessageShape<O>> = mutation.trigger;
-
-    return {
-      trigger,
-      reset: mutation.reset,
-      // Read through the tracked snapshot lazily so a property only becomes a
-      // rendering dependency (and thus a re-render trigger) when the consumer
-      // actually accesses it. Spreading would eagerly read every
-      // property and defeat the re-render reduction.
-      get data() {
-        return mutation.data;
-      },
-      get error() {
-        return mutation.error;
-      },
-      isMutating: mutation.isMutating
-    } as const;
+    return core.useMutation<MessageShape<O>, TayoriConnectMutationRequest<I>>(method, options);
   }
 
   // ---------- Preloading ----------

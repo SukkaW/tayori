@@ -72,7 +72,7 @@ describe('useDataImmutable', () => {
 });
 
 describe('useData key building errors', () => {
-  it('surfaces errors thrown by backend.argKey through SWR error for object and function args', async () => {
+  it('throws at render when backend.argKey fails, for object and function args alike', () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
@@ -82,16 +82,10 @@ describe('useData key building errors', () => {
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
-    const { result } = renderHook(() => {
-      const object = instance.useData('Get', { id: 13 }, { shouldRetryOnError: false });
-      const thunk = instance.useData('Get', () => ({ id: 13 }), { shouldRetryOnError: false });
-      return { objectError: object.error, thunkError: thunk.error };
-    }, { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.objectError).toBeA(Error);
-      expect(result.current.thunkError).toBeA(Error);
-    });
+    // a key that cannot be built is a configuration error: fail loudly instead of handing SWR an
+    // error it would retry forever
+    expect(() => renderHook(() => instance.useData('Get', { id: 13 }), { wrapper })).toThrow('cannot serialize');
+    expect(() => renderHook(() => instance.useData('Get', () => ({ id: 13 })), { wrapper })).toThrow('cannot serialize');
     expect(backend.calls).toEqual([]);
   });
 });
