@@ -17,9 +17,10 @@ export type TayoriConnectCallOptions = Pick<CallOptions, 'headers' | 'timeoutMs'
 export interface TayoriConnectRequest<I extends DescMessage = DescMessage> extends TayoriConnectCallOptions {
   /**
    * The request message (its init shape, like what you would pass to `create(Schema, ...)`).
-   * Omit it for methods whose request message has no fields.
+   * Pass `{}` for methods whose request message has no fields. It is required on purpose: a
+   * request bag that forgot its message would otherwise silently send an empty message.
    */
-  message?: MessageInitShape<I>,
+  message: MessageInitShape<I>,
   /**
    * Tags that can later be used to revalidate this request via `unstable_mutateWithTags`.
    * Tags are part of the SWR key.
@@ -123,7 +124,7 @@ export function createConnectBackend({ registry }: TayoriConnectBackendOptions =
         request.signal,
         request.timeoutMs,
         request.headers,
-        request.message ?? {},
+        request.message,
         request.contextValues
       );
       request.onHeader?.(response.header);

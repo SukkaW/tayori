@@ -10,6 +10,7 @@ import { isInternalSWRKey, isZodError, tayori, unstable_mutateWithTags } from '.
 import { createFakeClient, createFakeSdk } from '../test/fake-sdk';
 import type { FakeSdkOptions } from '../test/fake-sdk';
 import { createWrapper } from '../test/wrapper';
+import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, TayoriProvider } = tayori();
 
@@ -315,9 +316,7 @@ describe('isInternalSWRKey', () => {
 describe('unstable_mutateWithTags', () => {
   // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches the default cache, so these
   // tests share it and clear every tayori entry afterwards (inside act: the hooks are still mounted)
-  afterEach(() => act(async () => {
-    await mutate(isInternalSWRKey, undefined, { revalidate: false });
-  }));
+  afterEach(() => clearTayoriDefaultCache());
 
   it('revalidates the hooks whose cacheTags match', async () => {
     const client = createFakeClient();

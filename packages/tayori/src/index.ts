@@ -3,6 +3,7 @@
 import type { SWRConfiguration, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
 import type {
+  BrandedTayoriKeyLoader,
   CacheTag,
   SWRConfigurationWithOptionalFallback,
   SWRInfiniteConfigurationWithOptionalFallback,
@@ -168,27 +169,7 @@ export function tayori<
    * ```
    */
   function useMutation<SdkMethod extends GeneralSdkMethod>(sdkMethod: SdkMethod, options?: UseMutationOptions<SdkData<SdkMethod>, unknown>) {
-    const mutation = core.useMutation<SdkData<SdkMethod>>(sdkMethod, options);
-    const trigger = mutation.trigger as (
-      sdkArg: TayoriSdkArg<SdkMethod>,
-      triggerOptions?: UseMutationOptions<SdkData<SdkMethod>, unknown>
-    ) => Promise<SdkData<SdkMethod>>;
-
-    return {
-      trigger,
-      reset: mutation.reset,
-      // Read through the tracked snapshot lazily so a property only becomes a
-      // rendering dependency (and thus a re-render trigger) when the consumer
-      // actually accesses it. Spreading would eagerly read every
-      // property and defeat the re-render reduction.
-      get data() {
-        return mutation.data;
-      },
-      get error() {
-        return mutation.error;
-      },
-      isMutating: mutation.isMutating
-    } as const;
+    return core.useMutation<SdkData<SdkMethod>, TayoriSdkArg<SdkMethod>>(sdkMethod, options);
   }
 
   // ---------- Preloading ----------
@@ -333,10 +314,10 @@ export function tayori<
  * request is from tayori or not.
  *
  * Note that the key layout is `[client, sdkMethod, sdkArg, cacheTags]` (it was `[sdkMethod, sdkArg, cacheTags]`
- * before 0.4.0), and that SWR hands middlewares the raw key, which is a function when the hook was called with a
- * function argument, so check `Array.isArray(key)` before indexing into it.
+ * before 0.4.0), and that SWR hands middlewares the raw key, which for `useInfinite` is the branded
+ * `(pageIndex, previousPageData) => key` loader, so check `Array.isArray(key)` before indexing into it.
  */
-export function isInternalSWRKey(key: unknown): key is InternalSWRKey | (() => InternalSWRKey | null) {
+export function isInternalSWRKey(key: unknown): key is InternalSWRKey | BrandedTayoriKeyLoader<HeyAPIClientLike, GeneralSdkMethod> {
   return isTayoriKey(key) && key[kTayoriKey].backend === heyApiBackend.name;
 }
 

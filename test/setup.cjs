@@ -1,4 +1,8 @@
-import { GlobalRegistrator } from '@happy-dom/global-registrator';
+'use strict';
+
+// Shared mocha bootstrap for every package (see .mocharc.cjs). Plain CommonJS so that it needs no
+// TypeScript project of its own; @swc-node/register handles the test files themselves.
+const { GlobalRegistrator } = require('@happy-dom/global-registrator');
 
 // react-dom/client requires a DOM. Register Happy DOM globals (document,
 // window, etc.) before anything imports React DOM.
@@ -18,11 +22,6 @@ GlobalRegistrator.register({
     }
   }
 });
-
-declare global {
-  // eslint-disable-next-line vars-on-top -- types
-  var IS_REACT_ACT_ENVIRONMENT: boolean;
-}
 
 // Opt-in to React's act() environment so act() doesn't warn.
 // (@testing-library/react only toggles this automatically when beforeAll/afterAll exist, which mocha lacks)

@@ -7,6 +7,7 @@ import { createTayori, isTayoriKey, unstable_mutateWithTags } from '.';
 import { createFakeBackend } from '../test/fake-backend';
 import type { FakeArg, FakeBackend, FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
+import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
 
 const fetchedIds = (backend: FakeBackend) => backend.calls.map((call) => call.arg.id);
 
@@ -14,10 +15,8 @@ describe('unstable_mutateWithTags', () => {
   // mutateWithTags goes through SWR's global `mutate`, which only reaches the default SWR cache.
   // So these tests opt out of the isolated cache provider, and afterwards reset every tayori entry
   // of the default cache so that no test sees the data of another one.
-  afterEach(async () => {
-    await act(async () => {
-      await mutate(isTayoriKey, undefined, { revalidate: false });
-    });
+  afterEach(() => {
+    clearTayoriDefaultCache();
   });
 
   it('revalidates exactly the entries sharing a tag (thunk args included) and nothing else', async () => {

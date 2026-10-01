@@ -13,6 +13,7 @@ import { EchoResponseSchema, TestService } from '../test/gen/tayori/test/v1/test
 import type { EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
 import { createTestTransport } from '../test/router';
 import { createWrapper } from '../test/wrapper';
+import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, useTransport, TayoriProvider } = tayoriConnect();
 
@@ -48,7 +49,7 @@ describe('useData', () => {
   it('sends an empty request message when `message` is omitted', async () => {
     const { calls, wrapper } = setup();
 
-    const { result } = renderHook(() => useData(TestService.method.echo, {}), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, { message: {} }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data).not.toEqual(undefined);
@@ -383,9 +384,7 @@ describe('useTransport', () => {
 describe('unstable_mutateWithTags', () => {
   // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches the default cache, so these
   // tests share it and clear every tayori-connect entry afterwards (inside act: the hooks are still mounted)
-  afterEach(() => act(async () => {
-    await mutate(isTayoriConnectKey, undefined, { revalidate: false });
-  }));
+  afterEach(() => clearTayoriDefaultCache());
 
   it('revalidates the hooks whose cacheTags match', async () => {
     const { transport, calls } = createTestTransport();
@@ -421,7 +420,9 @@ function useTypeChecks() {
   // @ts-expect-error -- `text` is a string field
   useData(TestService.method.echo, { message: { text: 1 } });
   // `message` may be omitted: an empty request message
-  useData(TestService.method.echo, {});
+  useData(TestService.method.echo, { message: {} });
+  // @ts-expect-error -- `message` is required, a request that forgot it must not compile
+  useData(TestService.method.echo, { headers: { 'x-test': 'typed' } });
 
   const plain = useData(TestService.method.echo, { message: { text: 'a' } });
   const maybe: EchoResponse | undefined = plain.data;
