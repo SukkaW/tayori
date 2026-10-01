@@ -74,7 +74,7 @@ const { data, error } = useData(ElizaService.method.say, { sentence: 'Hello' });
 
 // mutations mirror Connect's `(request, options)` call shape
 const { trigger, isMutating } = useMutation(ElizaService.method.say);
-await trigger({ sentence: 'Save me' }, { headers: { 'x-request-id': id } });
+await trigger({ sentence: 'Save me' }, { callOptions: { headers: { 'x-request-id': id } } });
 ```
 
 ----

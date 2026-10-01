@@ -11,7 +11,7 @@ import { stableHash } from 'stable-hash';
 import type { BareFetcher, SWRConfiguration, Key as SWRKey, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
 
-import useSWR, { SWRConfig, useSWRConfig, preload as swrPreload } from 'swr';
+import useSWR, { useSWRConfig, preload as swrPreload } from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import useSWRInfinite from 'swr/infinite';
 
@@ -79,16 +79,10 @@ export function createTayori<Method, Arg, Data, Client extends object, CallOptio
     return nullthrow(use(ClientContext), `[${backend.name}] hooks must be used within <TayoriProvider />`);
   }
 
-  const swrConfigValue: SWRConfiguration = {
-    keepPreviousData: true
-  };
-
   function TayoriProvider({ children, initClient }: TayoriProviderProps<Client>) {
     return (
       <ClientContext value={useSingleton(() => initClient()).current}>
-        <SWRConfig value={swrConfigValue}>
-          {children}
-        </SWRConfig>
+        {children}
       </ClientContext>
     );
   }
