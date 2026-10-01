@@ -41,7 +41,7 @@ describe('useMutation', () => {
     await waitFor(() => {
       expect(result.current.isMutating).toEqual(false);
     });
-    expect(backend.calls).toEqual([{ via: 'call', client, method: 'Create', arg: { id: 1 }, callOptions: undefined }]);
+    expect(backend.calls).toEqual([{ client, method: 'Create', arg: { id: 1 } }]);
   });
 
   it('a rejection sets error, calls onError with a string id, and is rethrown to the caller', async () => {
@@ -175,7 +175,7 @@ describe('useMutation', () => {
       expect(result.current.query.data).toEqual('fresh');
     });
     // one initial fetch, one mutation call, and no revalidation of the query
-    expect(backend.calls.map((call) => call.via)).toEqual(['fetch', 'call']);
+    expect(backend.calls.length).toEqual(2);
   });
 
   it('leaves the cache alone by default, but a trigger-level populateCache opts in', async () => {
@@ -202,7 +202,7 @@ describe('useMutation', () => {
     await waitFor(() => {
       expect(result.current.query.data).toEqual('fresh');
     });
-    expect(backend.calls.map((call) => call.via)).toEqual(['fetch', 'call', 'call']);
+    expect(backend.calls.length).toEqual(3);
   });
 
   it('a trigger-level onSuccess replaces the hook-level one', async () => {
@@ -225,23 +225,6 @@ describe('useMutation', () => {
     expect(triggerOnSuccess.callCount).toEqual(1);
     expect(triggerOnSuccess.firstCall.args[0]).toEqual('c1:Create:2');
   });
-
-  it('merges callOptions from the hook and the trigger, the trigger winning per field', async () => {
-    const { backend, instance, wrapper } = setup();
-    const { result } = renderHook(() => instance.useMutation<string>('Create', { callOptions: { header: 'hook', timeoutMs: 100 } }), { wrapper });
-
-    await act(async () => {
-      await result.current.trigger({ id: 1 });
-    });
-    await act(async () => {
-      await result.current.trigger({ id: 2 }, { callOptions: { header: 'trigger' } });
-    });
-
-    expect(backend.calls.map((call) => call.callOptions)).toEqual([
-      { header: 'hook', timeoutMs: 100 },
-      { header: 'trigger', timeoutMs: 100 }
-    ]);
-  });
 });
 
 describe('useMutation trigger stability and validation', () => {
@@ -251,7 +234,7 @@ describe('useMutation trigger stability and validation', () => {
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
     const { result, rerender } = renderHook(
-      () => instance.useMutation('Post', { cacheTags: ['#a'], callOptions: { header: 'x' }, onSuccess: noop }),
+      () => instance.useMutation('Post', { populateCache: true, onSuccess: noop }),
       { wrapper }
     );
     const first = result.current.trigger;
@@ -261,22 +244,6 @@ describe('useMutation trigger stability and validation', () => {
 
     expect(result.current.trigger).toExactlyEqual(first);
     expect(result.current.reset).toExactlyEqual(result.current.reset);
-  });
-
-  it('uses the latest hook-level options when trigger() runs', async () => {
-    const backend = createFakeBackend();
-    const instance = createTayori(backend);
-    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
-
-    const { result, rerender } = renderHook(
-      ({ header }: { header: string }) => instance.useMutation('Post', { callOptions: { header } }),
-      { wrapper, initialProps: { header: 'v1' } }
-    );
-    rerender({ header: 'v2' });
-
-    await act(() => result.current.trigger({ id: 1 }));
-
-    expect(backend.calls).toEqual([{ via: 'call', client: { name: 'c1' }, method: 'Post', arg: { id: 1 }, callOptions: { header: 'v2' } }]);
   });
 
   it('validates the method before anything is sent', async () => {

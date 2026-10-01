@@ -1,7 +1,8 @@
-import type { CacheTag, Falsy, TayoriBackend, TayoriKey, TayoriKeyThunk } from './types';
+import type { CacheTag, TayoriBackend, TayoriKey } from './types';
 
 /**
- * Brand attached (as a non-enumerable property) to every SWR key and key function created by tayori.
+ * Brand attached (as a non-enumerable property) to every SWR key array and `useInfinite` key loader
+ * created by tayori.
  *
  * `Symbol.for` is used on purpose: if a bundle ends up with two copies of `tayori-core`
  * (dual package hazard, mismatched versions), they still recognize each other's keys.
@@ -29,8 +30,11 @@ export interface TayoriKeyBrand {
 
 export type BrandedTayoriKey<Client = unknown, MethodKey = unknown, ArgKey = unknown> =
   TayoriKey<Client, MethodKey, ArgKey> & TayoriKeyBrand;
-export type BrandedTayoriKeyThunk<Client = unknown, MethodKey = unknown, ArgKey = unknown> =
-  (() => BrandedTayoriKey<Client, MethodKey, ArgKey> | null) & TayoriKeyBrand;
+/**
+ * The branded key loader `useInfinite` hands to SWR. SWR middlewares see it as the "key".
+ */
+export type BrandedTayoriKeyLoader<Client = unknown, MethodKey = unknown, ArgKey = unknown> =
+  ((...args: never[]) => BrandedTayoriKey<Client, MethodKey, ArgKey> | null) & TayoriKeyBrand;
 
 export function brand<T extends object>(target: T, token: TayoriInstanceToken): T & TayoriKeyBrand {
   Object.defineProperty(target, kTayoriKey, {
@@ -41,14 +45,14 @@ export function brand<T extends object>(target: T, token: TayoriInstanceToken): 
 }
 
 /**
- * Whether the given SWR key (or SWR key function) was created by tayori, no matter which
+ * Whether the given SWR key (or `useInfinite` key loader) was created by tayori, no matter which
  * backend (`tayori`, `tayori-connect`, ...) or which `createTayori()` instance created it.
  *
  * If you write your own SWR middleware, you can use this function to check if the SWR
- * request is from tayori or not. Note that SWR hands middlewares the raw key, which is a
- * function when the hook was called with a function argument.
+ * request is from tayori or not. Note that SWR hands middlewares the raw key, which is the
+ * (branded) key loader function for `useInfinite`, so check `Array.isArray(key)` before indexing.
  */
-export function isTayoriKey(key: unknown): key is BrandedTayoriKey | BrandedTayoriKeyThunk {
+export function isTayoriKey(key: unknown): key is BrandedTayoriKey | BrandedTayoriKeyLoader {
   return !!key
     && (typeof key === 'function' || Array.isArray(key))
     && kTayoriKey in key
@@ -66,68 +70,33 @@ export function getKeyError(key: object): { hasError: true, error: unknown } | {
 }
 
 /**
- * Build one resolved SWR key array: `[client, methodKey, argKey, cacheTags]`.
+ * Build one SWR key array: `[client, methodKey, argKey, cacheTags]`.
  *
  * This is THE key layout, shared by `useData`, `useDataImmutable`, `useInfinite` (per page),
  * `usePreload` and `useMutation`'s `populateCache`. Errors thrown by `backend.argKey` are
  * captured into the key (see `kTayoriKeyError`) rather than thrown, so that they surface the
- * same way for object arguments, function arguments and infinite loaders.
+ * same way for every hook, including `useInfinite` whose loader SWR calls lazily.
  */
-export function buildKeyArray<Method, Arg, Client, CallOptions>(
+export function buildKey<Method, Arg, Client>(
   token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, CallOptions>, 'argKey'>,
+  backend: Pick<TayoriBackend<Method, Arg, unknown, Client>, 'argKey'>,
   client: Client,
   method: Method,
   methodKey: unknown,
-  arg: Arg,
-  cacheTagsFromOptions: CacheTag[] | undefined,
-  callOptions: CallOptions | undefined
+  arg: Arg
 ): BrandedTayoriKey<Client> {
   try {
-    const [argKey, cacheTagsFromArg] = backend.argKey(method, arg, callOptions);
-    const key: TayoriKey<Client> = [client, methodKey, argKey, cacheTagsFromOptions ?? cacheTagsFromArg];
+    const [argKey, cacheTags] = backend.argKey(method, arg);
+    const key: TayoriKey<Client> = [client, methodKey, argKey, cacheTags];
     return brand(key, token);
   } catch (error) {
     // A stable, distinct slot 2 so that SWR still hashes the key, plus the actual error for the fetcher
     // eslint-disable-next-line sukka/prefer-foxts-error-util -- foxts is not a dependency of tayori-core
-    const key: TayoriKey<Client> = [client, methodKey, { tayoriKeyError: String(error) }, cacheTagsFromOptions];
+    const key: TayoriKey<Client> = [client, methodKey, { tayoriKeyError: String(error) }, undefined];
     Object.defineProperty(key, kTayoriKeyError, {
       value: error,
       enumerable: false
     });
     return brand(key, token);
   }
-}
-
-/**
- * Build the SWR key for a request.
- *
- * - falsy `arg` pauses the request (`null` key)
- * - a function `arg` becomes a branded SWR key function, whose results are branded too (so
- *   `mutate(filter)`, which sees the resolved key, still recognizes them). Following SWR's
- *   semantics, a function that throws or returns a falsy value pauses the request.
- * - anything else becomes a branded key array
- */
-export function getKey<Method, Arg, Client, CallOptions>(
-  token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client, CallOptions>, 'argKey'>,
-  client: Client,
-  method: Method,
-  methodKey: unknown,
-  arg: Arg | Falsy | (() => Arg | Falsy),
-  cacheTagsFromOptions: CacheTag[] | undefined,
-  callOptions: CallOptions | undefined
-): BrandedTayoriKey<Client> | BrandedTayoriKeyThunk<Client> | null {
-  if (!arg) return null;
-
-  if (typeof arg === 'function') {
-    const thunk: TayoriKeyThunk<Client> = () => {
-      const resolvedArg = (arg as () => Arg | Falsy)();
-      if (!resolvedArg) return null;
-      return buildKeyArray(token, backend, client, method, methodKey, resolvedArg, cacheTagsFromOptions, callOptions);
-    };
-    return brand(thunk, token) as BrandedTayoriKeyThunk<Client>;
-  }
-
-  return buildKeyArray(token, backend, client, method, methodKey, arg, cacheTagsFromOptions, callOptions);
 }

@@ -26,8 +26,6 @@ export type TayoriKey<Client = unknown, MethodKey = unknown, ArgKey = unknown> =
   cacheTags: CacheTag[] | undefined
 ];
 
-export type TayoriKeyThunk<Client = unknown, MethodKey = unknown, ArgKey = unknown> = () => TayoriKey<Client, MethodKey, ArgKey> | null;
-
 /**
  * Same as SWR's `SWRInfiniteKeyLoader`, but returns the backend argument (or a falsy value to stop
  * loading more pages) instead of an SWR key.
@@ -35,27 +33,13 @@ export type TayoriKeyThunk<Client = unknown, MethodKey = unknown, ArgKey = unkno
 export type TayoriInfiniteKeyLoader<Data, Arg> = (pageIndex: number, previousPageData: Data | null) => Arg | Falsy;
 
 /**
- * Per-hook options that tayori itself understands (as opposed to SWR options).
- */
-export interface TayoriFetchOptions<CallOptions = never> {
-  /**
-   * Tags that can later be used to revalidate this request via `unstable_mutateWithTags`.
-   * Tags are part of the SWR key.
-   */
-  cacheTags?: CacheTag[],
-  /**
-   * Backend specific per-call options (e.g. Connect `headers` / `timeoutMs`). The hook that runs a
-   * request forwards its latest call options to the backend. The backend decides which of them are
-   * part of the SWR key (e.g. `headers` are, `timeoutMs` is not).
-   */
-  callOptions?: CallOptions
-}
-
-/**
  * The contract a backend adapter implements. `tayori-core` is deliberately loosely typed here:
  * adapters expose their own precisely typed facades on top of `createTayori()`.
+ *
+ * An `Arg` describes one request completely (for Hey API the generated request options, for
+ * Connect `{ message, headers, timeoutMs, ... }`), plus tayori's `cacheTags`.
  */
-export interface TayoriBackend<Method = unknown, Arg = unknown, Data = unknown, Client = unknown, CallOptions = never> {
+export interface TayoriBackend<Method = unknown, Arg = unknown, Data = unknown, Client = unknown> {
   /** Used in error messages and to tell keys of different backends apart, e.g. `'tayori'` */
   readonly name: string,
   /**
@@ -64,23 +48,18 @@ export interface TayoriBackend<Method = unknown, Arg = unknown, Data = unknown, 
    */
   methodKey(method: Method): unknown,
   /**
-   * Slot 2 of the SWR key (plus arg-level cache tags, if the backend supports them).
-   * `argKey` must contain everything `fetch` needs to rebuild the request, and must also include
-   * whatever part of the per-hook call options changes the response (e.g. Connect `headers`), so
-   * that such requests get their own cache entries.
+   * Slot 2 of the SWR key, plus the `cacheTags` found in the arg (slot 3). `argKey` must be plain,
+   * stable data that identifies the response: everything in the arg that can change what the server
+   * answers (the request itself, headers, ...) and nothing that cannot (timeouts, callbacks, signals).
    */
-  argKey(method: Method, arg: Arg, callOptions: CallOptions | undefined): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
+  argKey(method: Method, arg: Arg): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
   /**
-   * The SWR fetcher. Receives the client (key slot 0), the original `method`, the `argKey` (key slot 2,
-   * as produced by `argKey()`) and the per-hook call options of the hook that runs the request.
+   * Perform the request. Used both as the SWR fetcher and by `useMutation().trigger()`; `arg` is the
+   * original (latest) arg of the hook, not the key.
    */
-  fetch(client: Client, method: Method, argKey: unknown, callOptions: CallOptions | undefined): Promise<Data>,
-  /**
-   * Used by `useMutation().trigger()`, where the original `method` and `arg` are available.
-   */
-  call(client: Client, method: Method, arg: Arg, callOptions: CallOptions | undefined): Promise<Data>
+  call(client: Client, method: Method, arg: Arg): Promise<Data>
   // Reserved extension point (not implemented yet): server streaming
-  // stream?(client: Client, method: Method, arg: Arg, callOptions: CallOptions | undefined): AsyncIterable<Data>
+  // stream?(client: Client, method: Method, arg: Arg): AsyncIterable<Data>
 }
 
 export interface TayoriProviderProps<Client> extends React.PropsWithChildren {

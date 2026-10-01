@@ -20,7 +20,7 @@ describe('useData', () => {
     await waitFor(() => {
       expect(result.current.data).toEqual('c1:Get:1');
     });
-    expect(backend.calls).toEqual([{ via: 'fetch', client, method: 'Get', arg: { id: 1 }, callOptions: undefined }]);
+    expect(backend.calls).toEqual([{ client, method: 'Get', arg: { id: 1 } }]);
   });
 
   it('exposes backend errors through SWR error', async () => {

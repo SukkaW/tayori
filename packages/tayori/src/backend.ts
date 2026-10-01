@@ -25,8 +25,7 @@ export type HeyApiSdkArg = Record<string, unknown> & { cacheTags?: CacheTag[] };
 async function callSdk(
   client: HeyAPIClientLike,
   sdkMethod: GeneralSdkMethod,
-  sdkArg: Record<string, unknown>,
-  forceKyThrowHttpErrors: boolean
+  sdkArg: Record<string, unknown>
 ): Promise<unknown> {
   const options = {
     // default method options
@@ -48,8 +47,7 @@ async function callSdk(
   // Copy instead of mutating in place: `options.kyOptions` is still the caller's object (and part of
   // the SWR key), so writing into it would change the key's hash after the first request.
   if (
-    forceKyThrowHttpErrors
-    && 'kyOptions' in options
+    'kyOptions' in options
     && options.kyOptions
     && typeof options.kyOptions === 'object'
   ) {
@@ -74,9 +72,8 @@ export const heyApiBackend: TayoriBackend<GeneralSdkMethod, HeyApiSdkArg, unknow
     const { cacheTags, ...restSdkArg } = sdkArg;
     return [restSdkArg, cacheTags];
   },
-  fetch: (client, sdkMethod, argKey) => callSdk(client, sdkMethod, argKey as Record<string, unknown>, true),
   call(client, sdkMethod, sdkArg) {
     const { cacheTags: _unusedCacheTags, ...restSdkArg } = sdkArg;
-    return callSdk(client, sdkMethod, restSdkArg, false);
+    return callSdk(client, sdkMethod, restSdkArg);
   }
 };

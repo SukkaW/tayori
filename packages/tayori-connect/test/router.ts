@@ -48,7 +48,8 @@ export function createTestTransport(overrides: Partial<Pick<TestServiceImpl, Una
     calls.push({
       method: context.method.name,
       request,
-      headers: Object.fromEntries(context.requestHeader)
+      // not every DOM implementation lower-cases header names when iterating (Happy DOM keeps the original spelling)
+      headers: Object.fromEntries(Array.from(context.requestHeader, ([name, value]) => [name.toLowerCase(), value]))
     });
     return impl(request, context);
   };

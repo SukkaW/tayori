@@ -36,16 +36,17 @@ export function DataFetchingProvider({ children }: React.PropsWithChildren) {
 ```tsx
 import { ElizaService } from './gen/connectrpc/eliza/v1/eliza_pb';
 
-// The method descriptor is the "SDK method", the request message init is the argument,
-// SWR options go third, together with tayori's `cacheTags` and Connect's per-call `callOptions`.
-const { data, error, isLoading } = useData(ElizaService.method.say, { sentence: 'Hello' });
+// The method descriptor is the "SDK method". The second argument describes the request, like
+// in `tayori`: the request message under `message`, next to Connect's per-call options
+// (`headers`, `timeoutMs`, ...) and tayori's `cacheTags`. SWR options go third.
+const { data, error, isLoading } = useData(ElizaService.method.say, { message: { sentence: 'Hello' } });
 
 // Pass a falsy value (or a function returning one) to pause the request
-const { data: reply } = useData(ElizaService.method.say, name ? { sentence: `I am ${name}` } : null);
+const { data: reply } = useData(ElizaService.method.say, name ? { message: { sentence: `I am ${name}` } } : null);
 
-// Mutations mirror Connect's `(request, options)` call shape
+// Mutations take the same request object (plus an optional `signal`)
 const { trigger, isMutating } = useMutation(ElizaService.method.say);
-await trigger({ sentence: 'Save me' }, { callOptions: { headers: { 'x-request-id': id } } });
+await trigger({ message: { sentence: 'Save me' }, headers: { 'x-request-id': id } });
 ```
 
 Errors thrown by the transport are Connect's `ConnectError`; use `ConnectError.from(error)` to inspect `code` / `metadata` / `details`.

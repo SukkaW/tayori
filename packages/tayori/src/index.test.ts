@@ -169,7 +169,7 @@ describe('useInfinite', () => {
 });
 
 describe('useMutation', () => {
-  it('trigger() passes the arg through (cacheTags stripped, kyOptions untouched) and resolves with .data', async () => {
+  it('trigger() passes the arg through (cacheTags stripped, ky errors forced like the fetch path) and resolves with .data', async () => {
     const { client, wrapper } = setup();
     const { sdk, calls } = createFakeSdk<Item>(() => ({ id: 3 }));
 
@@ -182,11 +182,11 @@ describe('useMutation', () => {
     expect(response).toEqual({ id: 3 });
     expect(result.current.data).toEqual({ id: 3 });
     expect(result.current.isMutating).toEqual(false);
-    // the mutation path does not force `kyOptions.throwHttpErrors`
+    // the mutation path goes through the same SDK call as the fetch path
     expect(calls).toEqual([{
       client,
       body: { name: 'x' },
-      kyOptions: { retry: 0 },
+      kyOptions: { retry: 0, throwHttpErrors: true },
       throwOnError: true,
       responseStyle: 'fields'
     }]);

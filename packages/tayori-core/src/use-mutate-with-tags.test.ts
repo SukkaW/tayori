@@ -37,7 +37,7 @@ describe('useMutateWithTags', () => {
     await waitFor(() => {
       expect(backend.calls.length).toEqual(3);
     });
-    expect(backend.calls[2].arg).toEqual({ id: 1 });
+    expect(backend.calls[2].arg).toEqual({ id: 1, cacheTags: ['#t'] });
   });
 
   it('returns a stable function', () => {

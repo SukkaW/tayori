@@ -69,12 +69,13 @@ import { ElizaService } from './gen/connectrpc/eliza/v1/eliza_pb';
 
 export const { TayoriProvider, useData, useMutation } = tayoriConnect();
 
-// the method descriptor is the "SDK method", the request message init is the argument
-const { data, error } = useData(ElizaService.method.say, { sentence: 'Hello' });
+// the method descriptor is the "SDK method", the second argument describes the request:
+// the request message under `message`, next to Connect's per-call options (`headers`, ...)
+const { data, error } = useData(ElizaService.method.say, { message: { sentence: 'Hello' } });
 
-// mutations mirror Connect's `(request, options)` call shape
+// mutations take the same request object (plus an optional `signal`)
 const { trigger, isMutating } = useMutation(ElizaService.method.say);
-await trigger({ sentence: 'Save me' }, { callOptions: { headers: { 'x-request-id': id } } });
+await trigger({ message: { sentence: 'Save me' }, headers: { 'x-request-id': id } });
 ```
 
 ----
