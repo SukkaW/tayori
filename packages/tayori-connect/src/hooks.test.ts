@@ -67,8 +67,8 @@ describe('useData', () => {
     const { calls, wrapper } = setup();
 
     const { result } = renderHook(() => ({
-      a: useData(TestService.method.echo, { text: 'h' }, { headers: { 'x-test': 'a' } }),
-      b: useData(TestService.method.echo, { text: 'h' }, { headers: { 'x-test': 'b' } })
+      a: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: { 'x-test': 'a' } } }),
+      b: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: { 'x-test': 'b' } } })
     }), { wrapper });
 
     await waitFor(() => {
@@ -92,7 +92,7 @@ describe('useData', () => {
       }
     });
 
-    const { result } = renderHook(() => useData(TestService.method.echo, { text: 't' }, { timeoutMs: 5000 }), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, { text: 't' }, { callOptions: { timeoutMs: 5000 } }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data?.text).toEqual('t');
@@ -114,11 +114,13 @@ describe('useData', () => {
     const trailers: Headers[] = [];
 
     const { result } = renderHook(() => useData(TestService.method.echo, { text: 'x' }, {
-      onHeader(header) {
-        headers.push(header);
-      },
-      onTrailer(trailer) {
-        trailers.push(trailer);
+      callOptions: {
+        onHeader(header) {
+          headers.push(header);
+        },
+        onTrailer(trailer) {
+          trailers.push(trailer);
+        }
       }
     }), { wrapper });
 
@@ -212,7 +214,7 @@ describe('useMutation', () => {
     expect(result.current.data).toEqual(undefined);
     let response: EchoResponse | undefined;
     await act(async () => {
-      response = await result.current.trigger({ text: 'saved', big: 7n }, { headers: { 'x-test': 'mut' } });
+      response = await result.current.trigger({ text: 'saved', big: 7n }, { callOptions: { headers: { 'x-test': 'mut' } } });
     });
     expect(response?.text).toEqual('saved');
     expect(response?.big).toEqual(7n);
@@ -227,13 +229,13 @@ describe('useMutation', () => {
   it('merges trigger call options over hook call options', async () => {
     const { calls, wrapper } = setup();
 
-    const { result } = renderHook(() => useMutation(TestService.method.update, { headers: { 'x-test': 'hook', 'x-hook': '1' } }), { wrapper });
+    const { result } = renderHook(() => useMutation(TestService.method.update, { callOptions: { headers: { 'x-test': 'hook', 'x-hook': '1' } } }), { wrapper });
 
     await act(async () => {
       await result.current.trigger({ text: 'a' });
     });
     await act(async () => {
-      await result.current.trigger({ text: 'b' }, { headers: { 'x-test': 'trigger' } });
+      await result.current.trigger({ text: 'b' }, { callOptions: { headers: { 'x-test': 'trigger' } } });
     });
     expect(calls[0].headers['x-test']).toEqual('hook');
     expect(calls[0].headers['x-hook']).toEqual('1');
@@ -279,7 +281,7 @@ describe('useMutation', () => {
     let caught: unknown;
     await act(async () => {
       try {
-        await result.current.trigger({ text: 'x' }, { signal: controller.signal });
+        await result.current.trigger({ text: 'x' }, { callOptions: { signal: controller.signal } });
       } catch (e) {
         caught = e;
       }
@@ -323,7 +325,7 @@ describe('usePreload', () => {
       query: useData(TestService.method.echo, read && input)
     }), { wrapper, initialProps: { read: false } });
 
-    result.current.preload(TestService.method.echo, input, { headers: { 'x-test': 'preload' } });
+    result.current.preload(TestService.method.echo, input, { callOptions: { headers: { 'x-test': 'preload' } } });
     await waitFor(() => {
       expect(calls.length).toEqual(1);
     });
@@ -409,16 +411,18 @@ function useTypeChecks() {
 
   const withFallback = useData(TestService.method.echo, { text: 'a' }, {
     fallbackData: create(EchoResponseSchema, { text: 'fallback' }),
-    headers: { 'x-test': 'typed' }
+    callOptions: { headers: { 'x-test': 'typed' } }
   });
+  // @ts-expect-error -- Connect call options live under `callOptions`, not next to SWR options
+  useData(TestService.method.echo, { text: 'a' }, { headers: { 'x-test': 'typed' } });
   const nonNullable: EchoResponse = withFallback.data;
 
   const { trigger } = useMutation(TestService.method.update);
   // @ts-expect-error -- `text` is a string field
   void trigger({ text: 1 });
-  const triggered: Promise<EchoResponse> = trigger({ text: 'a' }, { signal: new AbortController().signal });
+  const triggered: Promise<EchoResponse> = trigger({ text: 'a' }, { callOptions: { signal: new AbortController().signal } });
   // @ts-expect-error -- `signal` is a trigger-level option, not a hook-level one
-  useMutation(TestService.method.update, { signal: new AbortController().signal });
+  useMutation(TestService.method.update, { callOptions: { signal: new AbortController().signal } });
 
   // @ts-expect-error -- streaming methods are not unary methods
   useData(TestService.method.stream, { text: 'a' });

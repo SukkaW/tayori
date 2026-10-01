@@ -289,21 +289,24 @@ useData(
     revalidateOnFocus: false,
     // tayori options, see "Cache Tags" below
     cacheTags: ['#eliza'],
-    // Connect call options, forwarded to the transport as-is
-    headers: { 'x-request-id': requestId }, // [!code highlight]
-    timeoutMs: 5000, // [!code highlight]
-    contextValues: createContextValues().set(kTenant, tenant),
-    onHeader(headers) {
-      // response headers
-    },
-    onTrailer(trailers) {
-      // response trailers
+    // Connect call options live under their own key, so they never mix with SWR options.
+    // They are forwarded to the transport as-is.
+    callOptions: { // [!code highlight]
+      headers: { 'x-request-id': requestId }, // [!code highlight]
+      timeoutMs: 5000, // [!code highlight]
+      contextValues: createContextValues().set(kTenant, tenant),
+      onHeader(headers) {
+        // response headers
+      },
+      onTrailer(trailers) {
+        // response trailers
+      }
     }
   }
 );
 ```
 
-The supported call options are `headers`, `timeoutMs`, `contextValues`, `onHeader` and `onTrailer`, the same options you would pass as the second argument of a Connect client method (`signal` is only available on `useMutation`'s `trigger`, SWR manages the lifecycle of `useData` requests itself).
+`callOptions` accepts `headers`, `timeoutMs`, `contextValues`, `onHeader` and `onTrailer`: exactly the object you would pass as the second argument of a Connect client method (`signal` is only available on `useMutation`'s `trigger`, SWR manages the lifecycle of `useData` requests itself).
 
 > **Call options are NOT part of the SWR key**
 >
@@ -415,19 +418,19 @@ Write the response message into the `useData` cache entry of the same method and
 
 Only used together with `populateCache`, to target the `useData` cache entry that was created with the same `cacheTags`.
 
-**headers, timeoutMs, contextValues, onHeader, onTrailer** (and **signal**, on `trigger` only)
+**callOptions**
 
-Connect call options, forwarded to the transport. Options passed to `trigger` are merged over the ones passed to `useMutation` field by field (a `headers` passed to `trigger` replaces the `headers` passed to `useMutation`, while the other fields are kept). `signal` is accepted by `trigger` only (an `AbortSignal` belongs to one call) and lets you abort an in-flight mutation:
+Connect call options (`headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`), forwarded to the transport. The `callOptions` passed to `trigger` are merged over the ones passed to `useMutation` field by field (a `headers` passed to `trigger` replaces the `headers` passed to `useMutation`, while the other fields are kept). On `trigger`, `callOptions` may also carry a `signal` (an `AbortSignal` belongs to one call) to abort an in-flight mutation:
 
 ```tsx
 const { trigger } = useMutation(PlanetService.method.updatePlanet, {
-  headers: { 'x-client': 'web' }
+  callOptions: { headers: { 'x-client': 'web' } }
 });
 
 const controller = new AbortController();
 await trigger(
   { id: 'earth', name: 'Terra' },
-  { timeoutMs: 3000, signal: controller.signal } // [!code highlight]
+  { callOptions: { timeoutMs: 3000, signal: controller.signal } } // [!code highlight]
 );
 ```
 
@@ -626,7 +629,7 @@ useInfinite(
     persistSize: false, // whether NOT to reset `size` back to 1 when the first page's request changes
     // ... and other useSWRInfinite options
     cacheTags: ['#planets'], // tayori options work here too
-    timeoutMs: 10_000 // so do Connect call options
+    callOptions: { timeoutMs: 10_000 } // so do Connect call options
   }
 );
 ```
@@ -820,6 +823,6 @@ Both packages are thin adapters on top of the same core (`tayori-core`): SWR opt
 | Second hook argument | Hey API request options, e.g. `{ path, query, body }` | request message, e.g. `{ sentence: 'Hello' }` |
 | `data` | the `data` field of the SDK result | the response message, e.g. `SayResponse` |
 | `cacheTags` | inside the request options | inside the options object (third argument / mutation options) |
-| Per-call `headers`, timeouts... | inside the request options (part of the SWR key) | `headers`, `timeoutMs`, ... inside the options object (not part of the SWR key) |
+| Per-call `headers`, timeouts... | inside the request options (part of the SWR key) | under `callOptions` in the options object (not part of the SWR key) |
 | Error type | whatever your Hey API client throws (e.g. `HTTPError` from ky) | `ConnectError` |
 | Escape hatch | call the SDK function directly | `useTransport()` + `createClient()`, e.g. for streaming |

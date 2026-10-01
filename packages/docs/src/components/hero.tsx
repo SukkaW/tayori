@@ -286,7 +286,7 @@ const BENTO: BentoCard[] = [
 
       await trigger(
         { name: 'Mars' },
-        { headers: { 'x-request-id': requestId } }
+        { callOptions: { headers: { 'x-request-id': requestId } } }
       );
     `.trim()
   }

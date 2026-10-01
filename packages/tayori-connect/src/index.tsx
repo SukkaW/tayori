@@ -1,7 +1,7 @@
 'use client';
 
 import type { DescMessage, DescMethodUnary, JsonValue, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
-import type { CallOptions, Transport } from '@connectrpc/connect';
+import type { Transport } from '@connectrpc/connect';
 import { useCallback } from 'react';
 import type { SWRConfiguration, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
@@ -28,28 +28,37 @@ export type { TayoriConnectBackendOptions, TayoriConnectCallOptions, TayoriConne
 
 /**
  * tayori's own options for `useData` / `useDataImmutable` / `useInfinite` / `usePreload`. They are
- * passed together with SWR options in the same object.
+ * passed in the same object as the SWR options, but Connect's per-call options live under their own
+ * `callOptions` key so that they never mix with SWR's.
  */
-export interface TayoriConnectOptions extends TayoriConnectCallOptions {
+export interface TayoriConnectOptions {
   /**
    * Tags that can later be used to revalidate this request via `unstable_mutateWithTags`.
    * Tags are part of the SWR key.
    */
-  cacheTags?: CacheTag[]
+  cacheTags?: CacheTag[],
+  /**
+   * Connect per-call options (`headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`):
+   * exactly what you would pass as the second argument of a Connect client method. They are
+   * forwarded to the transport but are NOT part of the SWR key.
+   */
+  callOptions?: TayoriConnectCallOptions
 }
 
 /**
- * Options for `useMutation()`: tayori's mutation options plus Connect's per-call options
+ * Options for `useMutation()`: tayori's mutation options plus `cacheTags` / Connect `callOptions`
  */
-export interface TayoriConnectMutationOptions<Data> extends UseMutationOptions<Data, unknown>, TayoriConnectCallOptions {
-  cacheTags?: CacheTag[]
-}
+export interface TayoriConnectMutationOptions<Data> extends UseMutationOptions<Data, unknown>, TayoriConnectOptions {}
 
 /**
- * Options for `useMutation().trigger()`: everything `useMutation()` accepts, plus an `AbortSignal`
- * for this specific call. Trigger-level options win over hook-level ones, field by field.
+ * Options for `useMutation().trigger()`: everything `useMutation()` accepts, and `callOptions` may
+ * additionally carry an `AbortSignal` for this specific call. Trigger-level options win over
+ * hook-level ones (`callOptions` are merged field by field).
  */
-export interface TayoriConnectTriggerOptions<Data> extends TayoriConnectMutationOptions<Data>, Pick<CallOptions, 'signal'> {}
+export interface TayoriConnectTriggerOptions<Data> extends UseMutationOptions<Data, unknown> {
+  cacheTags?: CacheTag[],
+  callOptions?: TayoriConnectTriggerCallOptions
+}
 
 /**
  * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", requestAsProtoJson, cacheTags]`
@@ -81,30 +90,20 @@ export interface TayoriConnectProviderProps extends React.PropsWithChildren {
 }
 
 interface SplitOptions {
-  /** Whatever is left after removing tayori / Connect options: SWR options or `UseMutationOptions` */
+  /** Whatever is left after removing tayori's own options: SWR options or `UseMutationOptions` */
   rest: unknown,
   cacheTags: CacheTag[] | undefined,
   callOptions: TayoriConnectTriggerCallOptions | undefined
 }
 
 /**
- * Split a hook options object into SWR / mutation options, tayori `cacheTags`, and Connect call options.
- * Only defined call options are kept, so that trigger-level options can be merged over hook-level ones.
+ * Split a hook options object into SWR / mutation options and tayori's `{ cacheTags, callOptions }`.
  */
-function split(options: (TayoriConnectOptions & Partial<TayoriConnectTriggerCallOptions>) | undefined): SplitOptions {
+function split(options: (TayoriConnectOptions | TayoriConnectTriggerOptions<unknown>) | undefined): SplitOptions {
   if (!options) {
     return { rest: undefined, cacheTags: undefined, callOptions: undefined };
   }
-  const { cacheTags, headers, timeoutMs, contextValues, onHeader, onTrailer, signal, ...rest } = options;
-
-  let callOptions: TayoriConnectTriggerCallOptions | undefined;
-  if (headers !== undefined) (callOptions ??= {}).headers = headers;
-  if (timeoutMs !== undefined) (callOptions ??= {}).timeoutMs = timeoutMs;
-  if (contextValues !== undefined) (callOptions ??= {}).contextValues = contextValues;
-  if (onHeader !== undefined) (callOptions ??= {}).onHeader = onHeader;
-  if (onTrailer !== undefined) (callOptions ??= {}).onTrailer = onTrailer;
-  if (signal !== undefined) (callOptions ??= {}).signal = signal;
-
+  const { cacheTags, callOptions, ...rest } = options;
   return { rest, cacheTags, callOptions };
 }
 
@@ -208,7 +207,7 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
    * ```tsx
    * const { trigger, isMutating } = useMutation(PlanetService.method.createPlanet);
    *
-   * <button onClick={() => trigger({ name: 'Mars' }, { headers: { 'x-request-id': id } })}>
+   * <button onClick={() => trigger({ name: 'Mars' }, { callOptions: { headers: { 'x-request-id': id } } })}>
    *   Save
    * </button>
    * ```
@@ -305,8 +304,8 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
      * // when this function throws or returns a falsy value, the request will be paused
      * useData(ElizaService.method.say, () => (name ? { sentence: `I am ${name}` } : null));
      *
-     * // You can pass SWR options, cacheTags and Connect call options as the third argument
-     * useData(ElizaService.method.say, { sentence: 'Hello' }, { revalidateOnFocus: false, headers: { 'x-foo': 'bar' } });
+     * // You can pass SWR options, cacheTags and Connect call options (under `callOptions`) as the third argument
+     * useData(ElizaService.method.say, { sentence: 'Hello' }, { revalidateOnFocus: false, callOptions: { headers: { 'x-foo': 'bar' } } });
      * ```
      */
     useData,
