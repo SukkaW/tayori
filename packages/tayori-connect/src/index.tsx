@@ -1,6 +1,6 @@
 'use client';
 
-import type { DescMessage, DescMethodUnary, JsonValue, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
+import type { DescMessage, DescMethodUnary, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
 import type { Transport } from '@connectrpc/connect';
 import { useCallback } from 'react';
 import type { SWRConfiguration, SWRResponse } from 'swr';
@@ -16,6 +16,7 @@ import type {
 import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 
 import type {
+  TayoriConnectArgKey,
   TayoriConnectBackendOptions,
   TayoriConnectCallOptions,
   TayoriConnectMethodKey,
@@ -24,7 +25,7 @@ import type {
 import { createConnectBackend } from './backend';
 
 export type { CacheTag, Falsy, UseMutationOptions } from 'tayori-core';
-export type { TayoriConnectBackendOptions, TayoriConnectCallOptions, TayoriConnectMethodKey, TayoriConnectTriggerCallOptions } from './backend';
+export type { TayoriConnectArgKey, TayoriConnectBackendOptions, TayoriConnectCallOptions, TayoriConnectMethodKey, TayoriConnectTriggerCallOptions } from './backend';
 
 /**
  * tayori's own options for `useData` / `useDataImmutable` / `useInfinite` / `usePreload`. They are
@@ -40,7 +41,8 @@ export interface TayoriConnectOptions {
   /**
    * Connect per-call options (`headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`):
    * exactly what you would pass as the second argument of a Connect client method. They are
-   * forwarded to the transport but are NOT part of the SWR key.
+   * forwarded to the transport. `headers` are part of the SWR key (two requests with different
+   * headers get their own cache entries, like in Hey API mode), the other call options are not.
    */
   callOptions?: TayoriConnectCallOptions
 }
@@ -61,9 +63,10 @@ export interface TayoriConnectTriggerOptions<Data> extends UseMutationOptions<Da
 }
 
 /**
- * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", requestAsProtoJson, cacheTags]`
+ * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", requestAsProtoJson, cacheTags]`,
+ * where slot 2 becomes `[requestAsProtoJson, headers]` when the hook was given `headers`.
  */
-export type TayoriConnectKey = TayoriKey<Transport, TayoriConnectMethodKey, JsonValue>;
+export type TayoriConnectKey = TayoriKey<Transport, TayoriConnectMethodKey, TayoriConnectArgKey>;
 
 export interface TayoriConnectProviderProps extends React.PropsWithChildren {
   /**

@@ -63,24 +63,28 @@ describe('useData', () => {
     expect(result.current.data).toEqual(undefined);
   });
 
-  it('forwards headers to the handler without making them part of the key', async () => {
+  it('forwards headers to the handler and makes them part of the key', async () => {
     const { calls, wrapper } = setup();
 
     const { result } = renderHook(() => ({
       a: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: { 'x-test': 'a' } } }),
-      b: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: { 'x-test': 'b' } } })
+      b: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: { 'x-test': 'b' } } }),
+      // same headers as `a`, spelled differently: same key
+      c: useData(TestService.method.echo, { text: 'h' }, { callOptions: { headers: new Headers({ 'X-Test': 'a' }) } })
     }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.a.data?.text).toEqual('h');
       expect(result.current.b.data?.text).toEqual('h');
+      expect(result.current.c.data?.text).toEqual('h');
     });
-    // same key: one request, whose call options are those of the hook that started it
-    expect(calls.length).toEqual(1);
-    expect(calls[0].headers['x-test']).toEqual('a');
+    // different headers: two requests, two cache entries, each with its own headers
+    expect(calls.length).toEqual(2);
+    expect(calls.map((call) => call.headers['x-test']).sort()).toEqual(['a', 'b']);
     expect(result.current.a.data?.receivedHeaders).toEqual({ 'x-test': 'a' });
-    // and the very same cache entry
-    expect(result.current.a.data!).toExactlyEqual(result.current.b.data);
+    expect(result.current.b.data?.receivedHeaders).toEqual({ 'x-test': 'b' });
+    // equivalent headers share the entry
+    expect(result.current.a.data!).toExactlyEqual(result.current.c.data);
   });
 
   it('forwards timeoutMs to the handler', async () => {
@@ -320,12 +324,15 @@ describe('usePreload', () => {
     const { calls, wrapper } = setup();
     const input = { text: 'pre' };
 
+    // headers are part of the key, so the preload and the later useData must use the same ones
+    const callOptions = { headers: { 'x-test': 'preload' } };
+
     const { result, rerender } = renderHook(({ read }: { read: boolean }) => ({
       preload: usePreload(),
-      query: useData(TestService.method.echo, read && input)
+      query: useData(TestService.method.echo, read && input, { callOptions })
     }), { wrapper, initialProps: { read: false } });
 
-    result.current.preload(TestService.method.echo, input, { callOptions: { headers: { 'x-test': 'preload' } } });
+    result.current.preload(TestService.method.echo, input, { callOptions });
     await waitFor(() => {
       expect(calls.length).toEqual(1);
     });

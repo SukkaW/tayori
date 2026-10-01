@@ -163,7 +163,7 @@ data; // SayResponse | undefined
 
 This is the very fundamental API of tayori-connect. It mirrors how you would call a method with a Connect client (`client.say({ sentence: 'Hello' })`), except that the method is passed explicitly: the first argument is a unary method descriptor from your generated code (`ElizaService.method.say`, `PlanetService.method.listPlanets`, etc.), and the second argument is the request message. You pass a plain object, exactly what you would pass to `create(SayRequestSchema, ...)`, there is no need to construct the message yourself. For methods whose request message has no fields, pass an empty object `{}`.
 
-The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`, where the request is serialized to canonical proto3 JSON. Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ pageSize: 20 }` and `{ pageSize: 20, pageToken: '' }` share the same cache entry.
+The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`, where the request is serialized to canonical proto3 JSON (when you pass `headers`, the third slot becomes `[request, headers]`, see "SWR Options and Call Options"). Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ pageSize: 20 }` and `{ pageSize: 20, pageToken: '' }` share the same cache entry.
 
 We recommend you not to use `useData` directly in your application, instead wrap `useData` with your own custom hooks for better reusability, and consistent request/SWR options across your app.
 
@@ -308,9 +308,9 @@ useData(
 
 `callOptions` accepts `headers`, `timeoutMs`, `contextValues`, `onHeader` and `onTrailer`: exactly the object you would pass as the second argument of a Connect client method (`signal` is only available on `useMutation`'s `trigger`, SWR manages the lifecycle of `useData` requests itself).
 
-> **Call options are NOT part of the SWR key**
+> **Only `headers` are part of the SWR key**
 >
-> Only the transport, the method, the request message and `cacheTags` identify a request. Two hooks with the same method and request but different `headers` (or `timeoutMs`, ...) share one cache entry and one in-flight request, and the call options of the hook that started the request are used. A hook always sends its latest call options: if you rotate a token in `headers`, the next revalidation picks it up.
+> The transport, the method, the request message, `cacheTags` and `headers` identify a request, exactly like in Hey API mode where `headers` live inside the request options: two hooks with the same method and request but different `headers` (say, another `Accept-Language`) get their own cache entries. Header names are case-insensitive and their order doesn't matter. The other call options (`timeoutMs`, `contextValues`, `onHeader`, `onTrailer`) don't change the response, so they are not part of the key: hooks that only differ in them share one cache entry and one in-flight request, and the call options of the hook that started the request are used. A hook always sends its latest call options, so a changed `timeoutMs` applies to the next revalidation. Avoid rotating per-request tokens through `headers` (every new token is a new cache entry), put auth into a transport interceptor instead.
 >
 > If something changes the response of your server, it belongs into the request message. Anything that should apply to every request (auth, tracing, locale) belongs into a transport interceptor.
 
@@ -663,7 +663,7 @@ function App() {
 }
 ```
 
-`preload(method, request, options?)` takes the same `cacheTags` and Connect call options as `useData`'s third argument (but no SWR options). Make sure they match the `useData` call you are preloading for, since `cacheTags` are part of the SWR key.
+`preload(method, request, options?)` takes the same `cacheTags` and Connect call options as `useData`'s third argument (but no SWR options). Make sure they match the `useData` call you are preloading for, since `cacheTags` and `headers` are part of the SWR key.
 
 > **Why can't I preload outside of React like SWR?**
 >
@@ -823,6 +823,6 @@ Both packages are thin adapters on top of the same core (`tayori-core`): SWR opt
 | Second hook argument | Hey API request options, e.g. `{ path, query, body }` | request message, e.g. `{ sentence: 'Hello' }` |
 | `data` | the `data` field of the SDK result | the response message, e.g. `SayResponse` |
 | `cacheTags` | inside the request options | inside the options object (third argument / mutation options) |
-| Per-call `headers`, timeouts... | inside the request options (part of the SWR key) | under `callOptions` in the options object (not part of the SWR key) |
+| Per-call `headers`, timeouts... | inside the request options (all part of the SWR key) | under `callOptions` in the options object (`headers` are part of the SWR key, `timeoutMs` etc. are not) |
 | Error type | whatever your Hey API client throws (e.g. `HTTPError` from ky) | `ConnectError` |
 | Escape hatch | call the SDK function directly | `useTransport()` + `createClient()`, e.g. for streaming |
