@@ -2,34 +2,27 @@ import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
+import sinon from 'sinon';
 import type { Middleware } from 'swr';
 import { unstable_serialize } from 'swr';
 import type { DescMethod, DescMethodUnary } from '@bufbuild/protobuf';
 import { create, createFileRegistry, createRegistry, toJson } from '@bufbuild/protobuf';
 import type { Any } from '@bufbuild/protobuf/wkt';
 import { anyPack, anyUnpack, file_google_protobuf_any, FileDescriptorProtoSchema, timestampFromDate } from '@bufbuild/protobuf/wkt';
-import { createRouterTransport } from '@connectrpc/connect';
+import { createContextValues, createRouterTransport } from '@connectrpc/connect';
 
+import type { TayoriConnectArgKey } from '.';
 import { isTayoriConnectKey, tayoriConnect } from '.';
 import { createConnectBackend, getMethodKey } from './backend';
 import { EchoRequestSchema, Kind, TestService } from '../test/gen/tayori/test/v1/test_pb';
-import type { EchoRequest } from '../test/gen/tayori/test/v1/test_pb';
+import type { EchoRequest, EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
 import { createTestTransport } from '../test/router';
 import { createWrapper } from '../test/wrapper';
 
-const { useData, TayoriProvider } = tayoriConnect();
+const { useData, useInfinite, TayoriProvider } = tayoriConnect();
 
 /** Copy a (branded) key into a plain array so that earl compares only the enumerable slots */
 const plain = (key: unknown) => Array.from(key as Iterable<unknown>);
-/** Resolve an SWR key function the way SWR does (a throwing key function pauses the request) */
-function resolveKey(key: unknown): unknown {
-  if (typeof key !== 'function') return key;
-  try {
-    return (key as () => unknown)();
-  } catch {
-    return 'thrown';
-  }
-}
 /** Let pending microtasks / fetches settle */
 function settle(ms = 20) {
   // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of this package
@@ -70,10 +63,10 @@ function setup() {
 }
 
 describe('tayori-connect SWR keys', () => {
-  it('builds [transport, "<service>/<method>", canonical proto3 JSON, cacheTags]', async () => {
+  it('builds [transport, "<service>/<method>", { message: canonical proto3 JSON }, cacheTags]', async () => {
     const { transport, calls, spy, wrapper } = setup();
     const at = new Date('2024-01-02T03:04:05Z');
-    const init = {
+    const message = {
       text: 'a',
       big: 9_007_199_254_740_993n,
       blob: new Uint8Array([1, 2, 3]),
@@ -84,7 +77,7 @@ describe('tayori-connect SWR keys', () => {
       nested: { value: 'n' }
     };
 
-    const { result } = renderHook(() => useData(TestService.method.echo, init, { cacheTags: ['#k'] }), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, { message, cacheTags: ['#k'] }), { wrapper });
     await waitFor(() => {
       expect(result.current.data?.text).toEqual('a');
     });
@@ -94,23 +87,26 @@ describe('tayori-connect SWR keys', () => {
     const [client, methodKey, argKey, cacheTags] = plain(key);
     expect(transport).toExactlyEqual(client);
     expect(methodKey).toEqual('tayori.test.v1.TestService/Echo');
-    // int64 as string, bytes as base64, Timestamp as RFC 3339, enum by name, map as object
+    // int64 as string, bytes as base64, Timestamp as RFC 3339, enum by name, map as object;
+    // no `headers` property at all when the request has none
     expect(argKey).toEqual({
-      text: 'a',
-      big: '9007199254740993',
-      blob: 'AQID',
-      at: '2024-01-02T03:04:05Z',
-      tags: ['x'],
-      counts: { a: 1 },
-      kind: 'KIND_A',
-      nested: { value: 'n' }
+      message: {
+        text: 'a',
+        big: '9007199254740993',
+        blob: 'AQID',
+        at: '2024-01-02T03:04:05Z',
+        tags: ['x'],
+        counts: { a: 1 },
+        kind: 'KIND_A',
+        nested: { value: 'n' }
+      }
     });
-    expect(argKey).toEqual(toJson(EchoRequestSchema, create(EchoRequestSchema, init)));
+    expect(argKey).toEqual({ message: toJson(EchoRequestSchema, create(EchoRequestSchema, message)) });
     expect(cacheTags).toEqual(['#k']);
-    // nothing else is enumerable (call options ride along as a hidden property)
+    // nothing else is enumerable (the tayori brand is a hidden property)
     expect(Object.keys(key as object)).toEqual(['0', '1', '2', '3']);
 
-    // the handler received the request decoded from the key, without loss
+    // the handler received the request message without loss
     expect(calls.length).toEqual(1);
     const { request } = calls[0];
     expect(request.text).toEqual('a');
@@ -124,7 +120,7 @@ describe('tayori-connect SWR keys', () => {
     expect(request.nested?.value).toEqual('n');
   });
 
-  it('omits default values, so equivalent inits share one key and one request', async () => {
+  it('omits default values, so equivalent messages share one key and one request', async () => {
     const { calls, spy, wrapper } = setup();
     const explicitDefaults = {
       text: 'a',
@@ -137,8 +133,8 @@ describe('tayori-connect SWR keys', () => {
     };
 
     const { result } = renderHook(() => ({
-      a: useData(TestService.method.echo, explicitDefaults),
-      b: useData(TestService.method.echo, { text: 'a' })
+      a: useData(TestService.method.echo, { message: explicitDefaults }),
+      b: useData(TestService.method.echo, { message: { text: 'a' } })
     }), { wrapper });
     await waitFor(() => {
       expect(result.current.a.data?.text).toEqual('a');
@@ -146,8 +142,8 @@ describe('tayori-connect SWR keys', () => {
     });
 
     const [a, b] = spy.keys;
-    expect(plain(a)[2]).toEqual({ text: 'a' });
-    expect(plain(b)[2]).toEqual({ text: 'a' });
+    expect(plain(a)[2]).toEqual({ message: { text: 'a' } });
+    expect(plain(b)[2]).toEqual({ message: { text: 'a' } });
     expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
     // same key: the second hook deduped onto the first request
     expect(calls.length).toEqual(1);
@@ -155,12 +151,47 @@ describe('tayori-connect SWR keys', () => {
     expect(calls[0].request.tags).toEqual([]);
   });
 
+  it('puts the headers into the key, so a request with different headers gets its own entry', async () => {
+    const { calls, spy, wrapper } = setup();
+
+    const { result } = renderHook(() => ({
+      a: useData(TestService.method.echo, { message: { text: 'a' }, headers: { 'X-Test': 'a' } }),
+      // same headers spelled differently: same key
+      b: useData(TestService.method.echo, { message: { text: 'a' }, headers: new Headers({ 'x-test': 'a' }) }),
+      c: useData(TestService.method.echo, { message: { text: 'a' }, headers: { 'x-test': 'c' } }),
+      // the other call options are not part of the key: same key as a plain `{ message }`
+      d: useData(TestService.method.echo, { message: { text: 'a' }, timeoutMs: 5000 }),
+      e: useData(TestService.method.echo, { message: { text: 'a' } })
+    }), { wrapper });
+    await waitFor(() => {
+      expect(result.current.a.data?.text).toEqual('a');
+      expect(result.current.b.data?.text).toEqual('a');
+      expect(result.current.c.data?.text).toEqual('a');
+      expect(result.current.d.data?.text).toEqual('a');
+      expect(result.current.e.data?.text).toEqual('a');
+    });
+
+    const [a, b, c, d, e] = spy.keys;
+    expect(plain(a)[2]).toEqual({ message: { text: 'a' }, headers: { 'x-test': 'a' } });
+    expect(plain(c)[2]).toEqual({ message: { text: 'a' }, headers: { 'x-test': 'c' } });
+    expect(plain(d)[2]).toEqual({ message: { text: 'a' } });
+    expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
+    expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(c as never));
+    expect(unstable_serialize(d as never)).toEqual(unstable_serialize(e as never));
+    // three distinct keys: three requests, each with the headers of its key
+    expect(calls.length).toEqual(3);
+    expect(calls.map((call) => call.headers['x-test'] ?? '').sort()).toEqual(['', 'a', 'c']);
+    expect(result.current.a.data?.receivedHeaders).toEqual({ 'x-test': 'a' });
+    expect(result.current.c.data?.receivedHeaders).toEqual({ 'x-test': 'c' });
+    expect(result.current.d.data?.receivedHeaders).toEqual({ 'x-test': '' });
+  });
+
   it('different transports produce different keys', async () => {
     const first = setup();
     const second = setup();
 
-    const a = renderHook(() => useData(TestService.method.echo, { text: 'same' }), { wrapper: first.wrapper });
-    const b = renderHook(() => useData(TestService.method.echo, { text: 'same' }), { wrapper: second.wrapper });
+    const a = renderHook(() => useData(TestService.method.echo, { message: { text: 'same' } }), { wrapper: first.wrapper });
+    const b = renderHook(() => useData(TestService.method.echo, { message: { text: 'same' } }), { wrapper: second.wrapper });
     // SWR only re-renders for the fields a hook has read (dependency collection): read both roots
     // before either request settles, otherwise the later-read root never observes its response
     expect(a.result.current.isLoading).toEqual(true);
@@ -178,7 +209,7 @@ describe('tayori-connect SWR keys', () => {
     expect(second.calls.length).toEqual(1);
   });
 
-  it('pauses on falsy input: null SWR key, no request', async () => {
+  it('pauses on a falsy request: null SWR key, no request', async () => {
     const { calls, spy, wrapper } = setup();
 
     const { result } = renderHook(() => ({
@@ -197,24 +228,22 @@ describe('tayori-connect SWR keys', () => {
     expect(calls.length).toEqual(0);
   });
 
-  it('resolves an input thunk into a branded key', async () => {
+  it('resolves a request thunk at render, so SWR gets the branded key array (not a key function)', async () => {
     const { spy, wrapper } = setup();
 
-    const { result } = renderHook(() => useData(TestService.method.echo, () => ({ text: 'thunk', big: 1n })), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, () => ({ message: { text: 'thunk', big: 1n } })), { wrapper });
     await waitFor(() => {
       expect(result.current.data?.text).toEqual('thunk');
     });
 
-    const raw = spy.keys[0];
-    expect(typeof raw).toEqual('function');
-    expect(isTayoriConnectKey(raw)).toEqual(true);
-    const resolved = resolveKey(raw);
-    expect(isTayoriConnectKey(resolved)).toEqual(true);
-    expect(plain(resolved)[1]).toEqual('tayori.test.v1.TestService/Echo');
-    expect(plain(resolved)[2]).toEqual({ text: 'thunk', big: '1' });
+    const key = spy.keys[0];
+    expect(Array.isArray(key)).toEqual(true);
+    expect(isTayoriConnectKey(key)).toEqual(true);
+    expect(plain(key)[1]).toEqual('tayori.test.v1.TestService/Echo');
+    expect(plain(key)[2]).toEqual({ message: { text: 'thunk', big: '1' } });
   });
 
-  it('pauses when the input thunk returns a falsy value or throws (no error is surfaced)', async () => {
+  it('pauses when the request thunk returns a falsy value or throws (no error is surfaced)', async () => {
     const { calls, spy, wrapper } = setup();
 
     const { result } = renderHook(() => ({
@@ -224,32 +253,75 @@ describe('tayori-connect SWR keys', () => {
       })
     }), { wrapper });
 
-    expect(resolveKey(spy.keys[0])).toEqual(null);
-    expect(resolveKey(spy.keys[1])).toEqual('thrown');
+    expect(spy.keys.slice(0, 2)).toEqual([null, null]);
     await settle();
     expectPaused(result.current.nullish);
     expectPaused(result.current.throwing);
     expect(calls.length).toEqual(0);
   });
+
+  it('hands SWR a branded key loader for useInfinite, which builds one branded key per page', async () => {
+    const { spy, wrapper } = setup();
+
+    const { result } = renderHook(() => useInfinite(TestService.method.echo, (pageIndex) => ({
+      message: { text: 'list', pageToken: String(pageIndex) }
+    })), { wrapper });
+    await waitFor(() => {
+      expect(result.current.data?.length).toEqual(1);
+    });
+
+    // SWR hands middlewares the raw `useSWRInfinite` key, i.e. the key loader
+    const loader = spy.keys[0];
+    expect(typeof loader).toEqual('function');
+    expect(Array.isArray(loader)).toEqual(false);
+    expect(isTayoriConnectKey(loader)).toEqual(true);
+
+    const page = (loader as (pageIndex: number, previousPageData: EchoResponse | null) => unknown)(1, result.current.data![0]);
+    expect(isTayoriConnectKey(page)).toEqual(true);
+    expect(plain(page)[1]).toEqual('tayori.test.v1.TestService/Echo');
+    expect(plain(page)[2]).toEqual({ message: { text: 'list', pageToken: '1' } });
+  });
 });
 
-describe('headers in the key', () => {
-  it('uses the plain request JSON without headers and a [request, headers] pair with them', () => {
-    const backend = createConnectBackend();
-    expect(backend.argKey(TestService.method.echo, { text: 'a' }, undefined)).toEqual([{ text: 'a' }, undefined]);
-    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { headers: {} })).toEqual([{ text: 'a' }, undefined]);
-    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { timeoutMs: 5000 })).toEqual([{ text: 'a' }, undefined]);
-    expect(backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'X-Tenant': 't1', 'accept-language': 'ja' } }))
-      .toEqual([[{ text: 'a' }, { 'accept-language': 'ja', 'x-tenant': 't1' }], undefined]);
+describe('createConnectBackend().argKey', () => {
+  const backend = createConnectBackend();
+
+  it('puts the message under `message` and only adds `headers` when the request has any', () => {
+    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' } })).toEqual([{ message: { text: 'a' } }, undefined]);
+    // no `message` at all: an empty request message
+    expect(backend.argKey(TestService.method.echo, {})).toEqual([{ message: {} }, undefined]);
+    // empty headers are no headers
+    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: {} })).toEqual([{ message: { text: 'a' } }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: new Headers() })).toEqual([{ message: { text: 'a' } }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'X-Tenant': 't1', 'accept-language': 'ja' } }))
+      .toEqual([{ message: { text: 'a' }, headers: { 'accept-language': 'ja', 'x-tenant': 't1' } }, undefined]);
+  });
+
+  it('keeps the other call options out of the key and passes cacheTags through as slot 3', () => {
+    const onHeader = sinon.spy();
+    const onTrailer = sinon.spy();
+    expect(backend.argKey(TestService.method.echo, {
+      message: { text: 'a' },
+      timeoutMs: 5000,
+      contextValues: createContextValues(),
+      onHeader,
+      onTrailer,
+      signal: new AbortController().signal,
+      cacheTags: ['#a', '#b']
+    })).toEqual([{ message: { text: 'a' } }, ['#a', '#b']]);
+    // building a key never performs the request
+    expect(onHeader.called).toEqual(false);
+    expect(onTrailer.called).toEqual(false);
   });
 
   it('normalizes header names and order so equivalent headers hash the same', () => {
-    const backend = createConnectBackend();
-    const [a] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'X-Tenant': 't1', 'Accept-Language': 'ja' } });
-    const [b] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: new Headers([['accept-language', 'ja'], ['x-tenant', 't1']]) });
-    const [c] = backend.argKey(TestService.method.echo, { text: 'a' }, { headers: { 'x-tenant': 't2' } });
+    const [a] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'X-Tenant': 't1', 'Accept-Language': 'ja' } });
+    const [b] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: new Headers([['accept-language', 'ja'], ['x-tenant', 't1']]) });
+    const [c] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'x-tenant': 't2' } });
+    const [d] = backend.argKey(TestService.method.echo, { message: { text: 'a' } });
     expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
     expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(c as never));
+    expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(d as never));
   });
 });
 
@@ -257,7 +329,7 @@ describe('isTayoriConnectKey', () => {
   it('rejects keys that were not built by tayori-connect', () => {
     expect(isTayoriConnectKey(null)).toEqual(false);
     expect(isTayoriConnectKey('tayori.test.v1.TestService/Echo')).toEqual(false);
-    expect(isTayoriConnectKey([{}, 'tayori.test.v1.TestService/Echo', { text: 'a' }, undefined])).toEqual(false);
+    expect(isTayoriConnectKey([{}, 'tayori.test.v1.TestService/Echo', { message: { text: 'a' } }, undefined])).toEqual(false);
     expect(isTayoriConnectKey(() => null)).toEqual(false);
   });
 });
@@ -295,18 +367,19 @@ describe('createConnectBackend', () => {
     const registry = createRegistry(EchoRequestSchema);
     const packed = anyPack(EchoRequestSchema, create(EchoRequestSchema, { text: 'inside' }));
 
-    it('is required to build a key for a populated google.protobuf.Any input', () => {
-      expect(() => createConnectBackend().argKey(wrap, packed, undefined)).toThrow('is not in the type registry');
+    it('is required to build a key for a populated google.protobuf.Any message', () => {
+      expect(() => createConnectBackend().argKey(wrap, { message: packed })).toThrow('is not in the type registry');
       // an empty Any needs no registry
-      expect(createConnectBackend().argKey(wrap, {}, undefined)).toEqual([{}, undefined]);
+      expect(createConnectBackend().argKey(wrap, {})).toEqual([{ message: {} }, undefined]);
+      expect(createConnectBackend().argKey(wrap, { message: {} })).toEqual([{ message: {} }, undefined]);
     });
 
-    it('surfaces the missing registry through SWR error for object and thunk inputs alike', async () => {
+    it('surfaces the missing registry through SWR error for object and thunk requests alike', async () => {
       const { wrapper } = setup();
 
       const { result } = renderHook(() => ({
-        object: useData(wrap, packed, { shouldRetryOnError: false }),
-        thunk: useData(wrap, () => packed, { shouldRetryOnError: false })
+        object: useData(wrap, { message: packed }, { shouldRetryOnError: false }),
+        thunk: useData(wrap, () => ({ message: packed }), { shouldRetryOnError: false })
       }), { wrapper });
 
       await waitFor(() => {
@@ -317,15 +390,16 @@ describe('createConnectBackend', () => {
       expect(String(result.current.thunk.error)).toInclude('is not in the type registry');
     });
 
-    it('encodes the Any for the key and decodes it again for the request', async () => {
+    it('serializes the Any for the key and sends the original message', async () => {
       const backend = createConnectBackend({ registry });
-      const [argKey] = backend.argKey(wrap, packed, undefined);
-      expect(argKey).toEqual({ '@type': 'type.googleapis.com/tayori.test.v1.EchoRequest', text: 'inside' });
+      const request = { message: packed };
+      const [argKey] = backend.argKey(wrap, request);
+      expect(argKey).toEqual({ message: { '@type': 'type.googleapis.com/tayori.test.v1.EchoRequest', text: 'inside' } });
 
       const transport = createRouterTransport(({ rpc }) => {
-        rpc(wrap, (request) => request);
+        rpc(wrap, (received) => received);
       });
-      const response = await backend.fetch(transport, wrap, argKey, undefined);
+      const response = await backend.call(transport, wrap, request);
       const unpacked = anyUnpack(response as Any, EchoRequestSchema);
       expect(unpacked?.text).toEqual('inside');
     });
@@ -337,8 +411,17 @@ function checkRequestFieldTypes(request: EchoRequest): [string, bigint, Uint8Arr
   return [request.text, request.big, request.blob, request.tags];
 }
 
+// `isTayoriConnectKey` narrows to the key array OR the `useInfinite` key loader, so `Array.isArray` is needed before indexing
+function checkKeyNarrowing(key: unknown): TayoriConnectArgKey | null {
+  if (isTayoriConnectKey(key) && Array.isArray(key)) {
+    return key[2];
+  }
+  return null;
+}
+
 describe('type-level checks', () => {
-  it('EchoRequest keeps its declared field types', () => {
+  it('compiles', () => {
     expect(typeof checkRequestFieldTypes).toEqual('function');
+    expect(typeof checkKeyNarrowing).toEqual('function');
   });
 });

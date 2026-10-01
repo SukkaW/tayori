@@ -268,7 +268,7 @@ const BENTO: BentoCard[] = [
     code: ts`
       const { data, error, isLoading } = useData(
         ElizaService.method.say,
-        { sentence: 'Hello from tayori' }
+        { message: { sentence: 'Hello from tayori' } }
       );
 
       // data is typed as SayResponse | undefined
@@ -284,10 +284,10 @@ const BENTO: BentoCard[] = [
         PlanetService.method.createPlanet
       );
 
-      await trigger(
-        { name: 'Mars' },
-        { callOptions: { headers: { 'x-request-id': requestId } } }
-      );
+      await trigger({
+        message: { name: 'Mars' },
+        headers: { 'x-request-id': requestId }
+      });
     `.trim()
   }
 ];

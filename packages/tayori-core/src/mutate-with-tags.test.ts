@@ -8,7 +8,7 @@ import { createFakeBackend } from '../test/fake-backend';
 import type { FakeArg, FakeBackend, FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
 
-const fetchedIds = (backend: FakeBackend) => backend.calls.map((call) => (call.arg as FakeArg).id);
+const fetchedIds = (backend: FakeBackend) => backend.calls.map((call) => call.arg.id);
 
 describe('unstable_mutateWithTags', () => {
   // mutateWithTags goes through SWR's global `mutate`, which only reaches the default SWR cache.
@@ -29,7 +29,7 @@ describe('unstable_mutateWithTags', () => {
 
     const { result } = renderHook(() => ({
       a: instance.useData<string>('Get', { id: 1, cacheTags: ['#a'] }),
-      ab: instance.useData<string>('Get', () => ({ id: 2 }), undefined, { cacheTags: ['#a', '#b'] }),
+      ab: instance.useData<string>('Get', () => ({ id: 2, cacheTags: ['#a', '#b'] })),
       untagged: instance.useData<string>('Get', { id: 3 }),
       plain: useSWR('plain-key', () => {
         plainFetches += 1;

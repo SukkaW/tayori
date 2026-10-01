@@ -1,22 +1,40 @@
 import type { DescMessage, DescMethod, DescMethodUnary, JsonValue, MessageInitShape, MessageShape, Registry } from '@bufbuild/protobuf';
-import { create, fromJson, toJson } from '@bufbuild/protobuf';
+import { create, toJson } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
-import type { TayoriBackend } from 'tayori-core';
+import type { CacheTag, TayoriBackend } from 'tayori-core';
 
 /**
- * Connect per-call options that tayori-connect forwards to the transport. They are NOT part of the
- * SWR key: two hooks with the same method + input but different headers share one cache entry.
+ * Connect per-call options that tayori-connect forwards to the transport: exactly what you would
+ * pass as the second argument of a Connect client method. `headers` are part of the SWR key (a
+ * request with different headers may get a different response), the others are not.
  */
 export type TayoriConnectCallOptions = Pick<CallOptions, 'headers' | 'timeoutMs' | 'contextValues' | 'onHeader' | 'onTrailer'>;
 
 /**
- * Same as `TayoriConnectCallOptions`, plus `signal`, which only makes sense for `useMutation().trigger()`.
+ * Describes one request, the way Hey API's request options describe a request in `tayori`:
+ * the request message plus Connect's per-call options plus tayori's `cacheTags`.
  */
-export type TayoriConnectTriggerCallOptions = TayoriConnectCallOptions & Pick<CallOptions, 'signal'>;
+export interface TayoriConnectRequest<I extends DescMessage = DescMessage> extends TayoriConnectCallOptions {
+  /**
+   * The request message (its init shape, like what you would pass to `create(Schema, ...)`).
+   * Omit it for methods whose request message has no fields.
+   */
+  message?: MessageInitShape<I>,
+  /**
+   * Tags that can later be used to revalidate this request via `unstable_mutateWithTags`.
+   * Tags are part of the SWR key.
+   */
+  cacheTags?: CacheTag[]
+}
+
+/**
+ * The request of `useMutation().trigger()`: same as `TayoriConnectRequest`, plus an `AbortSignal`
+ * (SWR manages the lifecycle of `useData` requests itself, so `signal` only exists for mutations).
+ */
+export interface TayoriConnectMutationRequest<I extends DescMessage = DescMessage> extends TayoriConnectRequest<I>, Pick<CallOptions, 'signal'> {}
 
 /** Loosely typed unary method descriptor used by the runtime */
 export type AnyUnaryMethod = DescMethodUnary;
-export type AnyMessageInit = MessageInitShape<DescMessage>;
 export type AnyMessage = MessageShape<DescMessage>;
 
 /**
@@ -26,11 +44,24 @@ export type AnyMessage = MessageShape<DescMessage>;
 export type TayoriConnectMethodKey = `${string}/${string}`;
 
 /**
- * Slot 2 of a tayori-connect SWR key: the request message as canonical proto3 JSON, or, when the
- * hook was given `headers`, a `[request, headers]` pair (header names lower-cased and sorted).
- * Like in Hey API mode, headers identify a request; the other call options don't.
+ * Slot 2 of a tayori-connect SWR key: the request message as canonical proto3 JSON, plus the
+ * headers (names lower-cased and sorted) when the request has any.
  */
-export type TayoriConnectArgKey = JsonValue | [request: JsonValue, headers: Record<string, string>];
+export interface TayoriConnectArgKey {
+  message: JsonValue,
+  headers?: Record<string, string>
+}
+
+/**
+ * Slot 1 of the key. Also validates that the method is unary: streaming methods are not supported (yet).
+ */
+export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
+  const key: TayoriConnectMethodKey = `${method.parent.typeName}/${method.name}`;
+  if (method.methodKind !== 'unary') {
+    throw new TypeError(`[tayori-connect] ${key} is a ${method.methodKind} method, only unary methods are supported for now`);
+  }
+  return key;
+}
 
 /**
  * A plain, sorted record of the given headers, or `undefined` when there are none
@@ -54,21 +85,9 @@ function headersKey(init: HeadersInit | undefined): Record<string, string> | und
   return result;
 }
 
-/**
- * Slot 1 of a tayori-connect SWR key. Also validates that the method is unary: streaming methods
- * are not supported (yet).
- */
-export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
-  const key: TayoriConnectMethodKey = `${method.parent.typeName}/${method.name}`;
-  if (method.methodKind !== 'unary') {
-    throw new TypeError(`[tayori-connect] ${key} is a ${method.methodKind} method, only unary methods are supported for now`);
-  }
-  return key;
-}
-
 export interface TayoriConnectBackendOptions {
   /**
-   * A protobuf-es `Registry` used when encoding / decoding the request message for the SWR key.
+   * A protobuf-es `Registry` used when serializing the request message for the SWR key.
    * Only needed if your request messages contain `google.protobuf.Any` fields.
    */
   registry?: Registry
@@ -76,49 +95,40 @@ export interface TayoriConnectBackendOptions {
 
 export function createConnectBackend({ registry }: TayoriConnectBackendOptions = {}): TayoriBackend<
   AnyUnaryMethod,
-  AnyMessageInit,
+  TayoriConnectMutationRequest,
   AnyMessage,
-  Transport,
-  TayoriConnectTriggerCallOptions
+  Transport
 > {
   const jsonOptions = registry ? { registry } : undefined;
-
-  async function unary(
-    transport: Transport,
-    method: AnyUnaryMethod,
-    input: AnyMessageInit,
-    callOptions: TayoriConnectTriggerCallOptions | undefined
-  ): Promise<AnyMessage> {
-    // Same as what Connect's own `createClient()` does for unary methods
-    const response = await transport.unary(
-      method,
-      callOptions?.signal,
-      callOptions?.timeoutMs,
-      callOptions?.headers,
-      input,
-      callOptions?.contextValues
-    );
-    callOptions?.onHeader?.(response.header);
-    callOptions?.onTrailer?.(response.trailer);
-    return response.message;
-  }
 
   return {
     name: 'tayori-connect',
     methodKey: getMethodKey,
     // Canonical proto3 JSON: unset / default fields are omitted, 64-bit integers become strings,
     // bytes become base64, well-known types use their JSON mapping. Equivalent inits yield equal keys.
-    // Headers are part of the key as well (a request with different headers may get a different response).
-    argKey(method, init, callOptions) {
-      const request = toJson(method.input, create(method.input, init), jsonOptions);
-      const headers = headersKey(callOptions?.headers);
-      return [headers ? [request, headers] satisfies TayoriConnectArgKey : request, undefined];
+    argKey(method, request) {
+      const argKey: TayoriConnectArgKey = {
+        message: toJson(method.input, create(method.input, request.message), jsonOptions)
+      };
+      const headers = headersKey(request.headers);
+      if (headers) {
+        argKey.headers = headers;
+      }
+      return [argKey, request.cacheTags];
     },
-    fetch(transport, method, argKey, callOptions) {
-      // a message is never serialized to a JSON array, so the pair is unambiguous
-      const request = Array.isArray(argKey) ? (argKey as [JsonValue, unknown])[0] : argKey as JsonValue;
-      return unary(transport, method, fromJson(method.input, request, jsonOptions), callOptions);
-    },
-    call: unary
+    // Same as what Connect's own `createClient()` does for unary methods
+    async call(transport, method, request) {
+      const response = await transport.unary(
+        method,
+        request.signal,
+        request.timeoutMs,
+        request.headers,
+        request.message ?? {},
+        request.contextValues
+      );
+      request.onHeader?.(response.header);
+      request.onTrailer?.(response.trailer);
+      return response.message;
+    }
   };
 }

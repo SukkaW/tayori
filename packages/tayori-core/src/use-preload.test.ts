@@ -22,11 +22,11 @@ describe('usePreload', () => {
     const { backend, client, instance, wrapper } = setup();
 
     const { result: preload } = renderHook(() => instance.usePreload(), { wrapper });
-    preload.current('Get', { id: 1 }, { callOptions: { header: 'pre' } });
+    preload.current('Get', { id: 1, timeout: 5 });
     // preloading the same request again before it is consumed is a no-op
     preload.current('Get', { id: 1 });
 
-    expect(backend.calls).toEqual([{ via: 'fetch', client, method: 'Get', arg: { id: 1 }, callOptions: { header: 'pre' } }]);
+    expect(backend.calls).toEqual([{ client, method: 'Get', arg: { id: 1, timeout: 5 } }]);
 
     const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }), { wrapper });
 

@@ -49,8 +49,8 @@ describe('SWR fetcher integration', () => {
       expect(result.current.b.data).toEqual('b:Get:2');
     });
 
-    expect(backendA.calls).toEqual([{ via: 'fetch', client: clientA, method: 'Get', arg: { id: 1 }, callOptions: undefined }]);
-    expect(backendB.calls).toEqual([{ via: 'fetch', client: clientB, method: 'Get', arg: { id: 2 }, callOptions: undefined }]);
+    expect(backendA.calls).toEqual([{ client: clientA, method: 'Get', arg: { id: 1 } }]);
+    expect(backendB.calls).toEqual([{ client: clientB, method: 'Get', arg: { id: 2 } }]);
   });
 
   it('leaves userland useSWR keys and their fetchers untouched', async () => {
@@ -92,7 +92,7 @@ describe('SWR fetcher integration', () => {
       expect(result.current.plain).toEqual('hijacked');
       expect(result.current.tayori).toEqual('c1:Get:1');
     });
-    expect(backend.calls).toEqual([{ via: 'fetch', client, method: 'Get', arg: { id: 1 }, callOptions: undefined }]);
+    expect(backend.calls).toEqual([{ client, method: 'Get', arg: { id: 1 } }]);
   });
 
   it('honours a per-hook fetcher passed in the SWR config', async () => {
@@ -144,27 +144,28 @@ describe('SWR fetcher integration', () => {
     expect(backend.calls.length).toEqual(1);
   });
 
-  it('uses the latest call options of the hook when a revalidation happens', async () => {
+  it('uses the latest arg of the hook when a revalidation happens, even if the key did not change', async () => {
     const backend = createFakeBackend();
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
+    // `timeout` is not part of the key (see the fake backend's argKey)
     const { result, rerender } = renderHook(
-      ({ header }: { header: string }) => instance.useData<string>('Get', { id: 1 }, undefined, { callOptions: { header } }),
-      { wrapper, initialProps: { header: 'token-1' } }
+      ({ timeout }: { timeout: number }) => instance.useData<string>('Get', { id: 1, timeout }),
+      { wrapper, initialProps: { timeout: 1 } }
     );
 
     await waitFor(() => {
       expect(result.current.data).toEqual('c1:Get:1');
     });
-    expect(backend.calls[0].callOptions).toEqual({ header: 'token-1' });
+    expect(backend.calls[0].arg).toEqual({ id: 1, timeout: 1 });
 
-    // same key, new call options: the next revalidation must use them
-    rerender({ header: 'token-2' });
+    // same key, new arg: the next revalidation must use it
+    rerender({ timeout: 2 });
     await act(() => result.current.mutate());
 
     expect(backend.calls.length).toEqual(2);
-    expect(backend.calls[1].callOptions).toEqual({ header: 'token-2' });
+    expect(backend.calls[1].arg).toEqual({ id: 1, timeout: 2 });
   });
 
   it('throws synchronously when a hook is rendered outside of <TayoriProvider />', () => {

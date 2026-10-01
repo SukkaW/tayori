@@ -61,9 +61,9 @@ describe('TayoriProvider', () => {
     const other = createTayori(createFakeBackend('two'));
     const client: FakeClient = { name: 'c1' };
 
-    const key = instance.getKey(client, 'Get', { id: 1, cacheTags: ['#a'] }, undefined);
-    const thunk = instance.getKey(client, 'Get', () => ({ id: 1 }), undefined);
-    const foreign = other.getKey(client, 'Get', { id: 1 }, undefined);
+    const key = instance.getKey(client, 'Get', { id: 1, cacheTags: ['#a'] });
+    const thunk = instance.getKey(client, 'Get', () => ({ id: 1 }));
+    const foreign = other.getKey(client, 'Get', { id: 1 });
 
     expect(Array.from(key as Iterable<unknown>)).toEqual([client, 'Get', { id: 1 }, ['#a']]);
     expect(isTayoriKey(key)).toEqual(true);

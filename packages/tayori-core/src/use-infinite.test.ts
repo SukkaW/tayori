@@ -4,9 +4,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { unstable_serialize, useSWRConfig } from 'swr';
 
 import { createTayori } from '.';
-import type { TayoriFetchOptions } from '.';
 import { createFakeBackend } from '../test/fake-backend';
-import type { FakeArg, FakeCallOptions, FakeClient } from '../test/fake-backend';
+import type { FakeArg, FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
 
 function setup() {
@@ -27,7 +26,7 @@ describe('useInfinite', () => {
     await waitFor(() => {
       expect(result.current.data).toEqual(['c1:List:1']);
     });
-    expect(backend.calls).toEqual([{ via: 'fetch', client, method: 'List', arg: { id: 1 }, callOptions: undefined }]);
+    expect(backend.calls).toEqual([{ client, method: 'List', arg: { id: 1 } }]);
   });
 
   it('setSize(2) loads the next page and hands previousPageData to the loader', async () => {
@@ -57,8 +56,8 @@ describe('useInfinite', () => {
     });
     expect(result.current.size).toEqual(2);
     expect(backend.calls).toEqual([
-      { via: 'fetch', client, method: 'List', arg: { id: 1 }, callOptions: undefined },
-      { via: 'fetch', client, method: 'List', arg: { id: 2 }, callOptions: undefined }
+      { client, method: 'List', arg: { id: 1 } },
+      { client, method: 'List', arg: { id: 2 } }
     ]);
     // the second page was requested with the data of the first page
     expect(loaderCalls).toInclude([1, 'c1:List:1']);
@@ -95,21 +94,14 @@ describe('useInfinite', () => {
     expect(backend.calls.map((call) => call.method)).toEqual(['Other']);
   });
 
-  it('puts cacheTags into every page key (options win over arg-level tags) and forwards callOptions', async () => {
+  it('puts arg-level cacheTags into every page key and forwards the whole arg to the backend', async () => {
     const { backend, client, instance, wrapper } = setup();
 
     const { result } = renderHook(() => ({
       list: instance.useInfinite<string>(
         'List',
-        (pageIndex) => ({ id: pageIndex + 1, cacheTags: ['#arg'] }),
-        { revalidateFirstPage: false },
-        { callOptions: { header: 'x' } }
-      ),
-      tagged: instance.useInfinite<string>(
-        'Tagged',
-        (pageIndex) => ({ id: pageIndex + 1, cacheTags: ['#arg'] }),
-        { revalidateFirstPage: false },
-        { cacheTags: ['#opt'] }
+        (pageIndex) => ({ id: pageIndex + 1, cacheTags: ['#arg'], timeout: 7 }),
+        { revalidateFirstPage: false }
       ),
       swr: useSWRConfig()
     }), { wrapper });
@@ -117,22 +109,17 @@ describe('useInfinite', () => {
     await waitFor(() => {
       expect(result.current.list.data).toEqual(['c1:List:1']);
     });
-    await waitFor(() => {
-      expect(result.current.tagged.data).toEqual(['c1:Tagged:1']);
-    });
 
     // Every page lives in the cache under the same key `useData` would build for it
     const { cache } = result.current.swr;
-    const cachedPage = (method: string, arg: FakeArg, options?: TayoriFetchOptions<FakeCallOptions>) => cache.get(unstable_serialize(instance.getKey(client, method, arg, options)))?.data;
+    const cachedPage = (method: string, arg: FakeArg) => cache.get(unstable_serialize(instance.getKey(client, method, arg)))?.data;
 
-    // arg-level tags are part of the page key
+    // cacheTags are part of the page key
     expect(cachedPage('List', { id: 1, cacheTags: ['#arg'] })).toEqual('c1:List:1');
     expect(cachedPage('List', { id: 1 })).toEqual(undefined);
-    // options.cacheTags replace arg-level tags
-    expect(cachedPage('Tagged', { id: 1 }, { cacheTags: ['#opt'] })).toEqual('c1:Tagged:1');
-    expect(cachedPage('Tagged', { id: 1, cacheTags: ['#arg'] })).toEqual(undefined);
-    // call options ride along with the key to the backend
-    expect(backend.calls.map((call) => call.callOptions)).toEqual([{ header: 'x' }, undefined]);
+    // `timeout` is not part of the key (see the fake backend), but the whole arg reaches the backend
+    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 99 })).toEqual('c1:List:1');
+    expect(backend.calls.map((call) => call.arg)).toEqual([{ id: 1, cacheTags: ['#arg'], timeout: 7 }]);
   });
 });
 
