@@ -20,7 +20,7 @@ describe('useInfinite', () => {
   it('fetches the first page through the backend with the client from the provider', async () => {
     const { backend, client, instance, wrapper } = setup();
 
-    const { result } = renderHook(() => instance.useInfinite<string>('List', (pageIndex) => ({ id: pageIndex + 1 })), { wrapper });
+    const { result } = renderHook(() => instance.useInfinite('List', (pageIndex) => ({ id: pageIndex + 1 })), { wrapper });
 
     expect(result.current.isLoading).toEqual(true);
     await waitFor(() => {
@@ -33,7 +33,7 @@ describe('useInfinite', () => {
     const { backend, client, instance, wrapper } = setup();
     const loaderCalls: Array<[pageIndex: number, previousPageData: string | null]> = [];
 
-    const { result } = renderHook(() => instance.useInfinite<string>(
+    const { result } = renderHook(() => instance.useInfinite(
       'List',
       (pageIndex, previousPageData) => {
         loaderCalls.push([pageIndex, previousPageData]);
@@ -66,7 +66,7 @@ describe('useInfinite', () => {
   it('stops loading pages once the loader returns a falsy value', async () => {
     const { backend, instance, wrapper } = setup();
 
-    const { result } = renderHook(() => instance.useInfinite<string>(
+    const { result } = renderHook(() => instance.useInfinite(
       'List',
       (pageIndex) => (pageIndex < 2 ? { id: pageIndex + 1 } : null),
       { initialSize: 5, revalidateFirstPage: false }
@@ -82,8 +82,8 @@ describe('useInfinite', () => {
     const { backend, instance, wrapper } = setup();
 
     const { result } = renderHook(() => ({
-      paused: instance.useInfinite<string>('List', () => null),
-      active: instance.useInfinite<string>('Other', () => ({ id: 1 }))
+      paused: instance.useInfinite('List', () => null),
+      active: instance.useInfinite('Other', () => ({ id: 1 }))
     }), { wrapper });
 
     await waitFor(() => {
@@ -98,7 +98,7 @@ describe('useInfinite', () => {
     const { backend, client, instance, wrapper } = setup();
 
     const { result } = renderHook(() => ({
-      list: instance.useInfinite<string>(
+      list: instance.useInfinite(
         'List',
         (pageIndex) => ({ id: pageIndex + 1, cacheTags: ['#arg'], timeout: 7 }),
         { revalidateFirstPage: false }

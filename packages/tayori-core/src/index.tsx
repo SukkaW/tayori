@@ -18,12 +18,16 @@ import useSWRInfinite from 'swr/infinite';
 import type { BrandedTayoriKey, TayoriInstanceToken } from './key';
 import { brand, buildKey, buildKeyOrThrow, getKeyArg, getKeyError, withKeyArg } from './key';
 import type {
+  ArgOf,
+  DataOf,
   Falsy,
+  MutationArgOf,
   SWRConfigurationWithOptionalFallback,
   SWRInfiniteConfigurationWithOptionalFallback,
   TayoriBackend,
   TayoriInfiniteKeyLoader,
   TayoriProviderProps,
+  TayoriTypes,
   UseMutationOptions
 } from './types';
 
@@ -35,14 +39,22 @@ export type {
 } from './key';
 export { isTayoriKey, kTayoriArg, kTayoriKey, kTayoriKeyError } from './key';
 export type {
+  Apply,
+  ArgOf,
   CacheTag,
+  ConstTypeFn,
+  DataOf,
   Falsy,
+  MutationArgOf,
   SWRConfigurationWithOptionalFallback,
   SWRInfiniteConfigurationWithOptionalFallback,
   TayoriBackend,
   TayoriInfiniteKeyLoader,
   TayoriKey,
   TayoriProviderProps,
+  TayoriSimpleTypes,
+  TayoriTypes,
+  TypeFn,
   UseMutationOptions
 } from './types';
 export { mutateWithTags as unstable_mutateWithTags, useMutateWithTags as unstable_useMutateWithTags } from './mutate-with-tags';
@@ -75,13 +87,19 @@ function resolveArg<Arg>(arg: Arg | Falsy | (() => Arg | Falsy)): Arg | null {
  * so no SWR middleware is involved: a global `SWRConfig.fetcher` never applies to tayori keys,
  * while user middlewares that wrap the fetcher keep working.
  *
- * The hooks returned here are loosely typed on purpose. Adapters wrap them with precisely typed
- * facades for their backend.
+ * The hooks are generic over the method they receive and type the request / response through the
+ * backend's `TayoriTypes` (see `ArgOf` / `DataOf`), so adapters only need to hand their backend to
+ * this function.
  */
-export function createTayori<Method, Arg, Data, Client extends object>(
-  backend: TayoriBackend<Method, Arg, Data, Client>
+export function createTayori<T extends TayoriTypes, Client extends object>(
+  backend: TayoriBackend<T, Client>
 ) {
+  type Method = T['Method'];
+  type Arg = T['Arg'];
+  type Data = T['Data'];
   type Key = BrandedTayoriKey<Client>;
+  /** The request arg of a hook, as the facade types it, or something that pauses the request */
+  type ArgInput<M> = ArgOf<T, M> | Falsy | (() => ArgOf<T, M> | Falsy);
 
   const token: TayoriInstanceToken = { backend: backend.name };
 
@@ -111,8 +129,8 @@ export function createTayori<Method, Arg, Data, Client extends object>(
    * Build the exact SWR key a hook of this instance would use for `method` + `arg`
    * (`null` when the arg pauses the request).
    */
-  function getKey(client: Client, method: Method, arg: Arg | Falsy | (() => Arg | Falsy)): Key | null {
-    const resolvedArg = resolveArg(arg);
+  function getKey<M extends Method>(client: Client, method: M, arg: ArgInput<M>): Key | null {
+    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
     return resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, backend.methodKey(method), resolvedArg);
   }
 
@@ -134,16 +152,17 @@ export function createTayori<Method, Arg, Data, Client extends object>(
   }
 
   // ---------- useData / useDataImmutable ----------
-  // `D` is the response type the adapter facade infers for a given method (a subtype of the
-  // backend's `Data`). The runtime does not care about it, adapters decide what it is.
-  function useData<D extends Data = Data, SWROptions extends SWRConfiguration<D> = SWRConfiguration<D>>(
-    method: Method,
-    arg: Arg | Falsy | (() => Arg | Falsy),
+  // The per-method request / response types (`ArgOf` / `DataOf`) are refinements of the backend's
+  // runtime `Arg` / `Data` that TypeScript cannot relate on its own, hence the casts at the boundary.
+  function useData<M extends Method, SWROptions extends SWRConfiguration<DataOf<T, M>> = SWRConfiguration<DataOf<T, M>>>(
+    method: M,
+    arg: ArgInput<M>,
     config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<D, unknown, SWROptions> {
+  ): SWRResponse<DataOf<T, M>, unknown, SWROptions> {
+    type D = DataOf<T, M>;
     const client = useClient();
     const methodKey = backend.methodKey(method);
-    const resolvedArg = resolveArg(arg);
+    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
     const key = resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, methodKey, resolvedArg);
     // A per-hook `fetcher` in the SWR config is honoured (handy for tests / stories), a global
     // `SWRConfig.fetcher` is not, since SWR only falls back to it when no fetcher is passed.
@@ -156,14 +175,15 @@ export function createTayori<Method, Arg, Data, Client extends object>(
     return useSWR(key as SWRKey, fetcher, config!);
   }
 
-  function useDataImmutable<D extends Data = Data, SWROptions extends SWRConfiguration<D> = SWRConfiguration<D>>(
-    method: Method,
-    arg: Arg | Falsy | (() => Arg | Falsy),
+  function useDataImmutable<M extends Method, SWROptions extends SWRConfiguration<DataOf<T, M>> = SWRConfiguration<DataOf<T, M>>>(
+    method: M,
+    arg: ArgInput<M>,
     config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<D, unknown, SWROptions> {
+  ): SWRResponse<DataOf<T, M>, unknown, SWROptions> {
+    type D = DataOf<T, M>;
     const client = useClient();
     const methodKey = backend.methodKey(method);
-    const resolvedArg = resolveArg(arg);
+    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
     const key = resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, methodKey, resolvedArg);
     const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher
       ?? ((swrKey: Key) => callForKey(swrKey, client, method, resolvedArg ?? undefined)) as BareFetcher<D>;
@@ -171,11 +191,12 @@ export function createTayori<Method, Arg, Data, Client extends object>(
   }
 
   // ---------- useInfinite ----------
-  function useInfinite<D extends Data = Data, SWROptions extends SWRInfiniteConfiguration<D> = SWRInfiniteConfiguration<D>>(
-    method: Method,
-    getArg: TayoriInfiniteKeyLoader<D, Arg>,
+  function useInfinite<M extends Method, SWROptions extends SWRInfiniteConfiguration<DataOf<T, M>> = SWRInfiniteConfiguration<DataOf<T, M>>>(
+    method: M,
+    getArg: TayoriInfiniteKeyLoader<DataOf<T, M>, ArgOf<T, M>>,
     config?: SWRInfiniteConfigurationWithOptionalFallback<SWROptions>
-  ): SWRInfiniteResponse<D, unknown> {
+  ): SWRInfiniteResponse<DataOf<T, M>, unknown> {
+    type D = DataOf<T, M>;
     const client = useClient();
     const methodKey = backend.methodKey(method);
 
@@ -203,8 +224,8 @@ export function createTayori<Method, Arg, Data, Client extends object>(
   }
 
   // ---------- useMutation ----------
-  // `A` is the (narrower) arg type the adapter facade accepts for `trigger`, like `D` for the response.
-  function useMutation<D extends Data = Data, A extends Arg = Arg>(method: Method, options?: UseMutationOptions<D, unknown>) {
+  function useMutation<M extends Method>(method: M, options?: UseMutationOptions<DataOf<T, M>, unknown>) {
+    type D = DataOf<T, M>;
     const onErrorFromHook = useStableHandler(options?.onError || noop);
     const onSuccessFromHook = useStableHandler(options?.onSuccess || noop);
 
@@ -245,7 +266,8 @@ export function createTayori<Method, Arg, Data, Client extends object>(
     const [isMutating, startMutating] = useTransition();
 
     const trigger = useCallback(
-      async (arg: A, triggerOptions?: UseMutationOptions<D, unknown>) => {
+      async (mutationArg: MutationArgOf<T, M>, triggerOptions?: UseMutationOptions<D, unknown>) => {
+        const arg = mutationArg as Arg;
         const mutationTicket = ++latestMutationTicketRef.current;
 
         // Validate / identify the method BEFORE anything is sent (for tayori-connect this is where
@@ -404,7 +426,8 @@ export function createTayori<Method, Arg, Data, Client extends object>(
   function usePreload() {
     const client = useClient();
 
-    return useCallback((method: Method, arg: Arg) => {
+    return useCallback(<M extends Method>(method: M, preloadArg: ArgOf<T, M>) => {
+      const arg = preloadArg as Arg;
       if (!arg) return;
       const key = buildKeyOrThrow(token, backend, client, method, backend.methodKey(method), arg);
       swrPreload(key as SWRKey, ((swrKey: Key) => callForKey(swrKey, client, method, arg)) as BareFetcher<Data>);

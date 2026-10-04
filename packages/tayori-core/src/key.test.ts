@@ -4,7 +4,7 @@ import { unstable_serialize } from 'swr';
 
 import { brand, buildKey, getKeyError, isTayoriKey, kTayoriKey, kTayoriKeyError } from './key';
 import type { TayoriInstanceToken } from './key';
-import type { TayoriBackend } from './types';
+import type { TayoriBackend, TayoriSimpleTypes } from './types';
 
 const token: TayoriInstanceToken = { backend: 'test' };
 /** Copy a (branded) key into a plain array so that earl compares only the enumerable slots */
@@ -13,7 +13,7 @@ const client = { name: 'client' };
 
 type Arg = { id: number, timeout?: number, cacheTags?: Array<`#${string}`> };
 
-const backend: Pick<TayoriBackend<string, Arg, unknown, typeof client>, 'argKey'> = {
+const backend: Pick<TayoriBackend<TayoriSimpleTypes<string, Arg, unknown>, typeof client>, 'argKey'> = {
   // `timeout` never changes the response, so it stays out of the key
   argKey(_method, { cacheTags, timeout: _timeout, ...rest }) {
     return [rest, cacheTags];

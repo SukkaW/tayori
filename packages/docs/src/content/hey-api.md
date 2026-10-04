@@ -93,6 +93,8 @@ export function DataFetchingProvider({ children }: React.PropsWithChildren) {
 }
 ```
 
+`tayori()` takes two type arguments from your generated code: `Options` (what every SDK function accepts) and `RequestResult` (what every SDK function resolves to). The request options and the response type of each hook are inferred from the SDK function you pass to it, but Hey API's `RequestResult` is a conditional type over `throwOnError` / `responseStyle` and differs between client plugins and versions, so tayori cannot infer how to read the response from an SDK function alone. These two types tell it how.
+
 By initializing the Hey API client within React through `<TayoriProvider />`, you get access to React context and hooks within your Hey API client, which provides great flexibility for handling auth and other dynamic configurations.
 
 Wrap your app with the `DataFetchingProvider` you just created. You don't have to wrap your entire app with it, just to make sure all your components that are fetching data are wrapped.

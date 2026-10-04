@@ -1,4 +1,4 @@
-import type { CacheTag, TayoriBackend } from '../src/types';
+import type { CacheTag, TayoriBackend, TayoriSimpleTypes } from '../src/types';
 
 export interface FakeClient {
   readonly name: string
@@ -21,10 +21,13 @@ export interface FakeCall {
   arg: FakeArg
 }
 
-export interface FakeBackend extends TayoriBackend<string, FakeArg, unknown, FakeClient> {
+/** Methods are strings, every method takes a `FakeArg` and responds with a string */
+export type FakeTypes = TayoriSimpleTypes<string, FakeArg, string>;
+
+export interface FakeBackend extends TayoriBackend<FakeTypes, FakeClient> {
   calls: FakeCall[],
   /** Replace the response producer. Return a rejected promise to simulate errors. */
-  respond: (client: FakeClient, method: string, arg: FakeArg) => Promise<unknown>
+  respond: (client: FakeClient, method: string, arg: FakeArg) => Promise<string>
 }
 
 /**

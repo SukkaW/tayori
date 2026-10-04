@@ -1,4 +1,4 @@
-import type { CacheTag, TayoriBackend, TayoriKey } from './types';
+import type { CacheTag, TayoriBackend, TayoriKey, TayoriSimpleTypes } from './types';
 
 /**
  * Brand attached (as a non-enumerable property) to every SWR key array and `useInfinite` key loader
@@ -103,7 +103,7 @@ export function getKeyArg<Arg>(key: object): Arg | undefined {
  */
 export function buildKey<Method, Arg, Client>(
   token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client>, 'argKey'>,
+  backend: Pick<TayoriBackend<TayoriSimpleTypes<Method, Arg, unknown>, Client>, 'argKey'>,
   client: Client,
   method: Method,
   methodKey: unknown,
@@ -132,7 +132,7 @@ export function buildKey<Method, Arg, Client>(
  */
 export function buildKeyOrThrow<Method, Arg, Client>(
   token: TayoriInstanceToken,
-  backend: Pick<TayoriBackend<Method, Arg, unknown, Client>, 'argKey'>,
+  backend: Pick<TayoriBackend<TayoriSimpleTypes<Method, Arg, unknown>, Client>, 'argKey'>,
   client: Client,
   method: Method,
   methodKey: unknown,

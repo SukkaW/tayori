@@ -28,7 +28,7 @@ describe('usePreload', () => {
 
     expect(backend.calls).toEqual([{ client, method: 'Get', arg: { id: 1, timeout: 5 } }]);
 
-    const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }), { wrapper });
+    const { result } = renderHook(() => instance.useData('Get', { id: 1 }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data).toEqual('preloader:Get:1');
@@ -43,8 +43,8 @@ describe('usePreload', () => {
     preload.current('Get', { id: 1, cacheTags: ['#tag'] });
 
     const { result } = renderHook(() => ({
-      tagged: instance.useData<string>('Get', { id: 1, cacheTags: ['#tag'] }),
-      untagged: instance.useData<string>('Get', { id: 1 })
+      tagged: instance.useData('Get', { id: 1, cacheTags: ['#tag'] }),
+      untagged: instance.useData('Get', { id: 1 })
     }), { wrapper });
 
     await waitFor(() => {

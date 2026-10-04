@@ -45,10 +45,10 @@ describe('useDataImmutable', () => {
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
     const { result, rerender } = renderHook(({ mountSecond }: { mountSecond: boolean }) => ({
-      immutable: instance.useDataImmutable<string>('Get', { id: 1 }),
-      immutableAgain: instance.useDataImmutable<string>('Get', mountSecond && { id: 1 }),
-      mutable: instance.useData<string>('Get', { id: 2 }),
-      mutableAgain: instance.useData<string>('Get', mountSecond && { id: 2 })
+      immutable: instance.useDataImmutable('Get', { id: 1 }),
+      immutableAgain: instance.useDataImmutable('Get', mountSecond && { id: 1 }),
+      mutable: instance.useData('Get', { id: 2 }),
+      mutableAgain: instance.useData('Get', mountSecond && { id: 2 })
     }), { wrapper, initialProps: { mountSecond: false } });
 
     await waitFor(() => {

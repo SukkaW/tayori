@@ -1,36 +1,26 @@
 'use client';
 
-import type { SWRConfiguration, SWRResponse } from 'swr';
-import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
-import type {
-  BrandedTayoriKeyLoader,
-  CacheTag,
-  SWRConfigurationWithOptionalFallback,
-  SWRInfiniteConfigurationWithOptionalFallback,
-  TayoriKey,
-  UseMutationOptions
-} from 'tayori-core';
+import type { BrandedTayoriKeyLoader, CacheTag, TayoriKey, TayoriProviderProps as CoreTayoriProviderProps } from 'tayori-core';
 import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 
-import type { GeneralSdkMethod, HeyAPIClientLike } from './backend';
-import { heyApiBackend } from './backend';
+import type { DefaultSdkRequestResult, GeneralSdkMethod, GeneralSdkOptions, GeneralSdkRequestResult, HeyAPIClientLike } from './backend';
+import { createHeyApiBackend, HEY_API_BACKEND_NAME } from './backend';
 
-type SdkReturn<SdkMethod extends GeneralSdkMethod> = Awaited<ReturnType<SdkMethod>>;
-type SdkData<SdkMethod extends GeneralSdkMethod> =
-  SdkReturn<SdkMethod> extends { data: infer D, request?: Request, response?: Response } ? NonNullable<D> : never;
-
-type OriginalSdkArg<SdkMethod extends GeneralSdkMethod> = Omit<
-  NonNullable<Parameters<SdkMethod>[0]>,
-  'responseStyle' | 'throwOnError'
->;
-
-export type TayoriSdkArg<SdkMethod extends GeneralSdkMethod> = OriginalSdkArg<SdkMethod> & {
-  cacheTags?: Array<`#${string}`>
-};
+export type { UseMutationOptions } from 'tayori-core';
+export type {
+  GeneralSdkMethod,
+  HeyAPIClientLike,
+  HeyApiBackend,
+  HeyApiSdkArg,
+  HeyApiSdkData,
+  HeyApiTypes,
+  SdkData,
+  TayoriSdkArg
+} from './backend';
 
 type InternalSWRKey<SdkArg = unknown> = TayoriKey<HeyAPIClientLike, GeneralSdkMethod, SdkArg>;
 
-export interface TayoriProviderProps extends React.PropsWithChildren {
+export interface TayoriProviderProps extends CoreTayoriProviderProps<HeyAPIClientLike> {
   /**
    * @example
    *
@@ -43,8 +33,6 @@ export interface TayoriProviderProps extends React.PropsWithChildren {
    */
   initClient: () => HeyAPIClientLike
 }
-
-export type { UseMutationOptions } from 'tayori-core';
 
 /**
  * @see https://tayori.skk.moe
@@ -65,124 +53,20 @@ export type { UseMutationOptions } from 'tayori-core';
  * ```
  */
 export function tayori<
-  // Both generics are kept for backward compatibility of the public signature. Each hook infers
-  // its request / response types from the SDK method it receives, so they are not used.
-  _SDKOptions extends { client?: unknown } = any,
-  _SDKRequestResult extends Promise<any> = Promise<{
-    data: unknown,
-    request: Request,
-    response: Response
-  }>
+  /**
+   * The `Options` type of your generated SDK: what every SDK function accepts (and what tayori spreads
+   * `client`, `throwOnError` and `responseStyle` into).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the default must accept every generated SDK
+  SDKOptions extends GeneralSdkOptions = any,
+  /**
+   * The `RequestResult` type of your generated client: what every SDK function resolves to. Hey API
+   * resolves it conditionally from `throwOnError` / `responseStyle` and it differs between client
+   * plugins and versions, so it cannot be inferred from an SDK function. tayori reads `.data` from it.
+   */
+  SDKRequestResult extends GeneralSdkRequestResult = DefaultSdkRequestResult
 >() {
-  const core = createTayori(heyApiBackend);
-
-  // ---------- useData ----------
-  function useData<
-    SdkMethod extends GeneralSdkMethod,
-    SWROptions extends SWRConfiguration<SdkData<SdkMethod>> = SWRConfiguration<SdkData<SdkMethod>>
-  >(
-    sdkMethod: SdkMethod,
-    sdkArg:
-      | TayoriSdkArg<SdkMethod>
-      | null
-      | undefined
-      | 0
-      | false
-      | (() => TayoriSdkArg<SdkMethod> | null | undefined | 0 | false),
-    config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<SdkData<SdkMethod>, unknown, SWROptions> {
-    return core.useData<SdkData<SdkMethod>, SWROptions>(sdkMethod, sdkArg, config);
-  }
-
-  // ---------- useDataImmutable ----------
-  function useDataImmutable<
-    SdkMethod extends GeneralSdkMethod,
-    SWROptions extends SWRConfiguration<SdkData<SdkMethod>> = SWRConfiguration<SdkData<SdkMethod>>
-  >(
-    sdkMethod: SdkMethod,
-    sdkArg:
-      | TayoriSdkArg<SdkMethod>
-      | null
-      | undefined
-      | 0
-      | false
-      | (() => TayoriSdkArg<SdkMethod> | null | undefined | 0 | false),
-    config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<SdkData<SdkMethod>, unknown, SWROptions> {
-    return core.useDataImmutable<SdkData<SdkMethod>, SWROptions>(sdkMethod, sdkArg, config);
-  }
-
-  // ---------- useInfinite ----------
-  /**
-   * @see https://tayori.skk.moe
-   *
-   * @example
-   *
-   * ```tsx
-   * const { data, error, size, setSize } = useInfinite(getData, (pageIndex, previousPageData) => {
-   *   if (previousPageData && !previousPageData.nextCursor) return null; // reached the end
-   *   return {
-   *     query: {
-   *       cursor: previousPageData?.nextCursor,
-   *       perPage: 10
-   *     }
-   *   }
-   * });
-   *
-   * <div>You have loaded {size} pages</div>
-   * <button onClick={() => setSize(size + 1)}>Load more</button>
-   * ```
-   */
-  function useInfinite<
-    SdkMethod extends GeneralSdkMethod,
-    SWROptions extends SWRInfiniteConfiguration<SdkData<SdkMethod>> = SWRInfiniteConfiguration<SdkData<SdkMethod>>
-  >(
-    sdkMethod: SdkMethod,
-    getSdkArg: SWRInfiniteKeyLoader<
-      SdkData<SdkMethod>,
-      TayoriSdkArg<SdkMethod> | null | undefined | false
-    >,
-    config?: SWRInfiniteConfigurationWithOptionalFallback<SWROptions>
-  ): SWRInfiniteResponse<SdkData<SdkMethod>, unknown> {
-    return core.useInfinite<SdkData<SdkMethod>, SWROptions>(sdkMethod, getSdkArg, config);
-  }
-
-  // ---------- useMutation ----------
-  /**
-   * @see https://tayori.skk.moe
-   *
-   * @example
-   *
-   * ```tsx
-   * import { updateData } from 'path/to/hey-api-generated-sdk';
-   *
-   * const { trigger } = useMutation(updateData, optionalTriggerOptions);
-   *
-   * <button
-   *   onClick={() => trigger(
-   *     { query: {}, body: 'hey api request options goes here' },
-   *     optionalTriggerOptions
-   *   )}
-   * >
-   *   Save
-   * </button>
-   * ```
-   */
-  function useMutation<SdkMethod extends GeneralSdkMethod>(sdkMethod: SdkMethod, options?: UseMutationOptions<SdkData<SdkMethod>, unknown>) {
-    return core.useMutation<SdkData<SdkMethod>, TayoriSdkArg<SdkMethod>>(sdkMethod, options);
-  }
-
-  // ---------- Preloading ----------
-  /**
-   * @see https://tayori.skk.moe
-   */
-  function usePreload() {
-    const preload = core.usePreload();
-
-    return function preloadSdkMethod<SdkMethod extends GeneralSdkMethod>(sdkMethod: SdkMethod, sdkArg: TayoriSdkArg<SdkMethod>) {
-      preload(sdkMethod, sdkArg);
-    };
-  }
+  const core = createTayori(createHeyApiBackend<SDKOptions, SDKRequestResult>());
 
   /**
    * You should wrap your app/routes with TayoriProvider and pass the Hey API client instance
@@ -249,15 +133,23 @@ export function tayori<
      * useData(getData, { query: {} }, { revalidateOnFocus: false });
      * ```
      */
-    useData,
+    useData: core.useData,
+    /**
+     * @see https://tayori.skk.moe
+     *
+     * @example
+     *
+     * ```ts
+     * const preload = usePreload();
+     *
+     * <Link onMouseEnter={() => preload(getData, { query: {} })} />
+     * ```
+     */
+    usePreload: core.usePreload,
     /**
      * @see https://tayori.skk.moe
      */
-    usePreload,
-    /**
-     * @see https://tayori.skk.moe
-     */
-    useDataImmutable,
+    useDataImmutable: core.useDataImmutable,
     /**
      * @see https://tayori.skk.moe
      *
@@ -265,7 +157,7 @@ export function tayori<
      *
      * ```tsx
      * const { data, error, size, setSize } = useInfinite(getData, (pageIndex, previousPageData) => {
-     *   if (previousPageData && !previousPageData.nextCursor) return null;
+     *   if (previousPageData && !previousPageData.nextCursor) return null; // reached the end
      *   return {
      *     query: {
      *       cursor: previousPageData?.nextCursor,
@@ -273,9 +165,12 @@ export function tayori<
      *     }
      *   };
      * });
+     *
+     * <div>You have loaded {size} pages</div>
+     * <button onClick={() => setSize(size + 1)}>Load more</button>
      * ```
      */
-    useInfinite,
+    useInfinite: core.useInfinite,
     /**
      * You should wrap your app/routes with TayoriProvider and pass the Hey API client instance.
      *
@@ -294,15 +189,21 @@ export function tayori<
      * @example
      *
      * ```tsx
-     * const { trigger } = useMutation(updateData);
+     * import { updateData } from 'path/to/hey-api-generated-sdk';
      *
-     * await trigger({
-     *   query: {},
-     *   body: 'hey api request options goes here'
-     * });
+     * const { trigger, isMutating } = useMutation(updateData, optionalTriggerOptions);
+     *
+     * <button
+     *   onClick={() => trigger(
+     *     { query: {}, body: 'hey api request options goes here' },
+     *     optionalTriggerOptions
+     *   )}
+     * >
+     *   Save
+     * </button>
      * ```
      */
-    useMutation
+    useMutation: core.useMutation
   } as const;
 }
 
@@ -318,7 +219,7 @@ export function tayori<
  * `(pageIndex, previousPageData) => key` loader, so check `Array.isArray(key)` before indexing into it.
  */
 export function isInternalSWRKey(key: unknown): key is InternalSWRKey | BrandedTayoriKeyLoader<HeyAPIClientLike, GeneralSdkMethod> {
-  return isTayoriKey(key) && key[kTayoriKey].backend === heyApiBackend.name;
+  return isTayoriKey(key) && key[kTayoriKey].backend === HEY_API_BACKEND_NAME;
 }
 
 export { unstable_mutateWithTags, unstable_useMutateWithTags } from 'tayori-core';

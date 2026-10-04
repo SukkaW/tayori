@@ -1,36 +1,24 @@
 'use client';
 
-import type { DescMessage, DescMethodUnary, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
 import type { Transport } from '@connectrpc/connect';
-import type { SWRConfiguration, SWRResponse } from 'swr';
-import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
-import type {
-  BrandedTayoriKeyLoader,
-  Falsy,
-  SWRConfigurationWithOptionalFallback,
-  SWRInfiniteConfigurationWithOptionalFallback,
-  TayoriKey,
-  UseMutationOptions
-} from 'tayori-core';
+import type { BrandedTayoriKeyLoader, TayoriKey } from 'tayori-core';
 import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 
-import type {
-  TayoriConnectArgKey,
-  TayoriConnectBackendOptions,
-  TayoriConnectMethodKey,
-  TayoriConnectMutationRequest,
-  TayoriConnectRequest
-} from './backend';
+import type { TayoriConnectArgKey, TayoriConnectBackendOptions, TayoriConnectMethodKey } from './backend';
 import { createConnectBackend } from './backend';
 
 export type { CacheTag, Falsy, UseMutationOptions } from 'tayori-core';
 export type {
+  MethodInput,
+  MethodOutput,
   TayoriConnectArgKey,
+  TayoriConnectBackend,
   TayoriConnectBackendOptions,
   TayoriConnectCallOptions,
   TayoriConnectMethodKey,
   TayoriConnectMutationRequest,
-  TayoriConnectRequest
+  TayoriConnectRequest,
+  TayoriConnectTypes
 } from './backend';
 
 /**
@@ -81,99 +69,6 @@ export interface TayoriConnectProviderProps extends React.PropsWithChildren {
 export function tayoriConnect(options?: TayoriConnectBackendOptions) {
   const core = createTayori(createConnectBackend(options));
 
-  // ---------- useData ----------
-  function useData<
-    I extends DescMessage,
-    O extends DescMessage,
-    SWROptions extends SWRConfiguration<MessageShape<O>> = SWRConfiguration<MessageShape<O>>
-  >(
-    method: DescMethodUnary<I, O>,
-    request: TayoriConnectRequest<I> | Falsy | (() => TayoriConnectRequest<I> | Falsy),
-    config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<MessageShape<O>, unknown, SWROptions> {
-    return core.useData<MessageShape<O>, SWROptions>(method, request, config);
-  }
-
-  // ---------- useDataImmutable ----------
-  function useDataImmutable<
-    I extends DescMessage,
-    O extends DescMessage,
-    SWROptions extends SWRConfiguration<MessageShape<O>> = SWRConfiguration<MessageShape<O>>
-  >(
-    method: DescMethodUnary<I, O>,
-    request: TayoriConnectRequest<I> | Falsy | (() => TayoriConnectRequest<I> | Falsy),
-    config?: SWRConfigurationWithOptionalFallback<SWROptions>
-  ): SWRResponse<MessageShape<O>, unknown, SWROptions> {
-    return core.useDataImmutable<MessageShape<O>, SWROptions>(method, request, config);
-  }
-
-  // ---------- useInfinite ----------
-  /**
-   * @see https://tayori.skk.moe/connect
-   *
-   * @example
-   *
-   * ```tsx
-   * const { data, error, size, setSize } = useInfinite(PlanetService.method.listPlanets, (pageIndex, previousPageData) => {
-   *   if (previousPageData && !previousPageData.nextPageToken) return null; // reached the end
-   *   return {
-   *     message: {
-   *       pageToken: previousPageData?.nextPageToken,
-   *       pageSize: 10
-   *     }
-   *   };
-   * });
-   * ```
-   */
-  function useInfinite<
-    I extends DescMessage,
-    O extends DescMessage,
-    SWROptions extends SWRInfiniteConfiguration<MessageShape<O>> = SWRInfiniteConfiguration<MessageShape<O>>
-  >(
-    method: DescMethodUnary<I, O>,
-    getRequest: SWRInfiniteKeyLoader<MessageShape<O>, TayoriConnectRequest<I> | null | undefined | false>,
-    config?: SWRInfiniteConfigurationWithOptionalFallback<SWROptions>
-  ): SWRInfiniteResponse<MessageShape<O>, unknown> {
-    return core.useInfinite<MessageShape<O>, SWROptions>(method, getRequest, config);
-  }
-
-  // ---------- useMutation ----------
-  /**
-   * @see https://tayori.skk.moe/connect
-   *
-   * @example
-   *
-   * ```tsx
-   * const { trigger, isMutating } = useMutation(PlanetService.method.createPlanet);
-   *
-   * <button onClick={() => trigger({ message: { name: 'Mars' }, headers: { 'x-request-id': id } })}>
-   *   Save
-   * </button>
-   * ```
-   */
-  function useMutation<I extends DescMessage, O extends DescMessage>(
-    method: DescMethodUnary<I, O>,
-    options?: UseMutationOptions<MessageShape<O>, unknown>
-  ) {
-    return core.useMutation<MessageShape<O>, TayoriConnectMutationRequest<I>>(method, options);
-  }
-
-  // ---------- Preloading ----------
-  /**
-   * @see https://tayori.skk.moe/connect
-   */
-  function usePreload() {
-    const preload = core.usePreload();
-
-    return function preloadMethod<I extends DescMessage, O extends DescMessage>(
-      method: DescMethodUnary<I, O>,
-      request: TayoriConnectRequest<I>
-    ) {
-      preload(method, request);
-    };
-  }
-
-  // ---------- Provider ----------
   const CoreProvider = core.TayoriProvider;
 
   /**
@@ -215,23 +110,55 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
      * );
      * ```
      */
-    useData,
+    useData: core.useData,
     /**
      * @see https://tayori.skk.moe/connect
      */
-    useDataImmutable,
+    useDataImmutable: core.useDataImmutable,
     /**
      * @see https://tayori.skk.moe/connect
+     *
+     * @example
+     *
+     * ```tsx
+     * const { data, error, size, setSize } = useInfinite(PlanetService.method.listPlanets, (pageIndex, previousPageData) => {
+     *   if (previousPageData && !previousPageData.nextPageToken) return null; // reached the end
+     *   return {
+     *     message: {
+     *       pageToken: previousPageData?.nextPageToken,
+     *       pageSize: 10
+     *     }
+     *   };
+     * });
+     * ```
      */
-    useInfinite,
+    useInfinite: core.useInfinite,
     /**
      * @see https://tayori.skk.moe/connect
+     *
+     * @example
+     *
+     * ```tsx
+     * const { trigger, isMutating } = useMutation(PlanetService.method.createPlanet);
+     *
+     * <button onClick={() => trigger({ message: { name: 'Mars' }, headers: { 'x-request-id': id } })}>
+     *   Save
+     * </button>
+     * ```
      */
-    useMutation,
+    useMutation: core.useMutation,
     /**
      * @see https://tayori.skk.moe/connect
+     *
+     * @example
+     *
+     * ```tsx
+     * const preload = usePreload();
+     *
+     * <Link onMouseEnter={() => preload(ElizaService.method.say, { message: { sentence: 'Hello' } })} />
+     * ```
      */
-    usePreload,
+    usePreload: core.usePreload,
     /**
      * You should wrap your app/routes with TayoriProvider and pass a function that creates the Connect transport.
      *
