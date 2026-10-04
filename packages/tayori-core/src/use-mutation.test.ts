@@ -24,7 +24,7 @@ describe('useMutation', () => {
 
   it('trigger calls the backend and exposes the result as data', async () => {
     const { backend, client, instance, wrapper } = setup();
-    const { result } = renderHook(() => instance.useMutation<string>('Create'), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create'), { wrapper });
 
     expect(result.current.data).toEqual(undefined);
     expect(result.current.error).toEqual(undefined);
@@ -48,7 +48,7 @@ describe('useMutation', () => {
     const { backend, instance, wrapper } = setup();
     backend.respond = () => Promise.reject(new Error('nope'));
     const onError = sinon.spy();
-    const { result } = renderHook(() => instance.useMutation<string>('Create', { onError }), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create', { onError }), { wrapper });
 
     await act(async () => {
       await expect(result.current.trigger({ id: 1 })).toBeRejectedWith(Error, 'nope');
@@ -66,7 +66,7 @@ describe('useMutation', () => {
     const { backend, instance, wrapper } = setup();
     const deferred = createDeferred<string>();
     backend.respond = () => deferred.promise;
-    const { result } = renderHook(() => instance.useMutation<string>('Create'), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create'), { wrapper });
 
     let pending: Promise<string> | undefined;
     act(() => {
@@ -95,7 +95,7 @@ describe('useMutation', () => {
     const second = createDeferred<string>();
     backend.respond = (_client, _method, arg) => (arg.id === 1 ? first.promise : second.promise);
     const onSuccess = sinon.spy();
-    const { result } = renderHook(() => instance.useMutation<string>('Create', { onSuccess }), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create', { onSuccess }), { wrapper });
 
     let firstTrigger: Promise<string> | undefined;
     let secondTrigger: Promise<string> | undefined;
@@ -126,7 +126,7 @@ describe('useMutation', () => {
   it('reset() clears data and error and ignores results that resolve afterwards', async () => {
     const { backend, instance, wrapper } = setup();
     const onSuccess = sinon.spy();
-    const { result } = renderHook(() => instance.useMutation<string>('Create', { onSuccess }), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create', { onSuccess }), { wrapper });
 
     await act(async () => {
       await result.current.trigger({ id: 1 });
@@ -158,8 +158,8 @@ describe('useMutation', () => {
   it('populateCache: true writes the result into the matching useData cache slot without refetching', async () => {
     const { backend, instance, wrapper } = setup();
     const { result } = renderHook(() => ({
-      mutation: instance.useMutation<string>('Get', { populateCache: true }),
-      query: instance.useData<string>('Get', { id: 1 })
+      mutation: instance.useMutation('Get', { populateCache: true }),
+      query: instance.useData('Get', { id: 1 })
     }), { wrapper });
 
     await waitFor(() => {
@@ -181,8 +181,8 @@ describe('useMutation', () => {
   it('leaves the cache alone by default, but a trigger-level populateCache opts in', async () => {
     const { backend, instance, wrapper } = setup();
     const { result } = renderHook(() => ({
-      mutation: instance.useMutation<string>('Get'),
-      query: instance.useData<string>('Get', { id: 1 })
+      mutation: instance.useMutation('Get'),
+      query: instance.useData('Get', { id: 1 })
     }), { wrapper });
 
     await waitFor(() => {
@@ -209,7 +209,7 @@ describe('useMutation', () => {
     const { instance, wrapper } = setup();
     const hookOnSuccess = sinon.spy();
     const triggerOnSuccess = sinon.spy();
-    const { result } = renderHook(() => instance.useMutation<string>('Create', { onSuccess: hookOnSuccess }), { wrapper });
+    const { result } = renderHook(() => instance.useMutation('Create', { onSuccess: hookOnSuccess }), { wrapper });
 
     await act(async () => {
       await result.current.trigger({ id: 1 });

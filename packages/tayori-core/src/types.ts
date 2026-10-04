@@ -33,31 +33,93 @@ export type TayoriKey<Client = unknown, MethodKey = unknown, ArgKey = unknown> =
 export type TayoriInfiniteKeyLoader<Data, Arg> = (pageIndex: number, previousPageData: Data | null) => Arg | Falsy;
 
 /**
- * The contract a backend adapter implements. `tayori-core` is deliberately loosely typed here:
- * adapters expose their own precisely typed facades on top of `createTayori()`.
+ * A type-level function. `Apply<F, X>` evaluates `F['output']` with `F['input']` bound to `X`, so an
+ * adapter can describe "the request type for a given method" without higher-kinded types:
+ *
+ * ```ts
+ * interface ResponseOf extends TypeFn { readonly output: Awaited<ReturnType<this['input']>> }
+ * type R = Apply<ResponseOf, () => Promise<number>>; // number
+ * ```
+ */
+export interface TypeFn {
+  readonly input: unknown,
+  readonly output: unknown
+}
+
+export type Apply<F extends TypeFn, X> = (F & { readonly input: X })['output'];
+
+/** A `TypeFn` that ignores its input, for backends whose request / response types do not depend on the method */
+export interface ConstTypeFn<T> extends TypeFn {
+  readonly output: T
+}
+
+/**
+ * The types of a backend: the loose runtime types the `TayoriBackend` implementation works with,
+ * plus the per-method types the hooks expose. Hooks are generic over the method they receive
+ * (`M extends Method`) and type their request / response as `Apply<ArgOf, M>` / `Apply<DataOf, M>`,
+ * so adapters do not need to re-declare every hook.
+ */
+export interface TayoriTypes {
+  /** Every method the backend accepts, e.g. `(arg: any) => any` (Hey API) or `DescMethodUnary` (Connect) */
+  readonly Method: unknown,
+  /** Every request arg, what `TayoriBackend.argKey` / `TayoriBackend.call` receive. Includes tayori's `cacheTags`. */
+  readonly Arg: unknown,
+  /** Every response, what `TayoriBackend.call` resolves to */
+  readonly Data: unknown,
+  /** `Method` → the request arg of `useData` / `useDataImmutable` / `useInfinite` / `usePreload` for that method (a subtype of `Arg`) */
+  readonly ArgOf: TypeFn,
+  /** `Method` → the request arg of `useMutation().trigger()` for that method (a subtype of `Arg`) */
+  readonly MutationArgOf: TypeFn,
+  /** `Method` → the response of that method (a subtype of `Data`) */
+  readonly DataOf: TypeFn
+}
+
+/** `TayoriTypes` for a backend whose request / response types are the same for every method */
+export interface TayoriSimpleTypes<Method, Arg, Data> extends TayoriTypes {
+  readonly Method: Method,
+  readonly Arg: Arg,
+  readonly Data: Data,
+  readonly ArgOf: ConstTypeFn<Arg>,
+  readonly MutationArgOf: ConstTypeFn<Arg>,
+  readonly DataOf: ConstTypeFn<Data>
+}
+
+export type ArgOf<T extends TayoriTypes, M> = Apply<T['ArgOf'], M>;
+export type MutationArgOf<T extends TayoriTypes, M> = Apply<T['MutationArgOf'], M>;
+export type DataOf<T extends TayoriTypes, M> = Apply<T['DataOf'], M>;
+
+/**
+ * The contract a backend adapter implements. The runtime only needs `T['Method']`, `T['Arg']` and
+ * `T['Data']`; the per-method members of `T` type the hooks `createTayori()` returns.
  *
  * An `Arg` describes one request completely (for Hey API the generated request options, for
  * Connect `{ message, headers, timeoutMs, ... }`), plus tayori's `cacheTags`.
  */
-export interface TayoriBackend<Method = unknown, Arg = unknown, Data = unknown, Client = unknown> {
+export interface TayoriBackend<T extends TayoriTypes = TayoriTypes, Client = unknown> {
+  /**
+   * Type-level only, never set at runtime: TypeScript cannot infer `T` back from `T['Method']` in
+   * the method signatures below, so this phantom member is what lets `createTayori(backend)` pick up
+   * the backend's `TayoriTypes` from a `TayoriBackend<T, Client>`-typed value.
+   */
+  readonly types?: T,
   /** Used in error messages and to tell keys of different backends apart, e.g. `'tayori'` */
   readonly name: string,
   /**
    * Slot 1 of the SWR key. Must be stable across renders and hashable by SWR
    * (Hey API: the SDK function itself; Connect: `${service.typeName}/${method.name}`).
    */
-  methodKey(method: Method): unknown,
+  methodKey(method: T['Method']): unknown,
   /**
    * Slot 2 of the SWR key, plus the `cacheTags` found in the arg (slot 3). `argKey` must be plain,
    * stable data that identifies the response: everything in the arg that can change what the server
    * answers (the request itself, headers, ...) and nothing that cannot (timeouts, callbacks, signals).
    */
-  argKey(method: Method, arg: Arg): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
+  argKey(method: T['Method'], arg: T['Arg']): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
   /**
    * Perform the request. Used both as the SWR fetcher and by `useMutation().trigger()`; `arg` is the
    * original (latest) arg of the hook, not the key.
    */
-  call(client: Client, method: Method, arg: Arg): Promise<Data>
+  call(client: Client, method: T['Method'], arg: T['Arg']): Promise<T['Data']>
   // Reserved extension point (not implemented yet): server streaming
   // stream?(client: Client, method: Method, arg: Arg): AsyncIterable<Data>
 }

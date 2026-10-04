@@ -38,8 +38,8 @@ describe('SWR fetcher integration', () => {
     }
 
     const { result } = renderHook(() => ({
-      a: instanceA.useData<string>('Get', { id: 1 }),
-      b: instanceB.useData<string>('Get', { id: 2 })
+      a: instanceA.useData('Get', { id: 1 }),
+      b: instanceB.useData('Get', { id: 2 })
     }), { wrapper: Wrapper });
 
     await waitFor(() => {
@@ -83,7 +83,7 @@ describe('SWR fetcher integration', () => {
 
     // SWR only re-renders for the fields a render has read, so read `data` during render
     const { result } = renderHook(() => ({
-      tayori: instance.useData<string>('Get', { id: 1 }).data,
+      tayori: instance.useData('Get', { id: 1 }).data,
       // no fetcher given: SWR falls back to the global one
       plain: useSWR<string>('plain').data
     }), { wrapper: Wrapper });
@@ -100,7 +100,7 @@ describe('SWR fetcher integration', () => {
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
-    const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }, { fetcher: () => Promise.resolve('fixture') }), { wrapper });
+    const { result } = renderHook(() => instance.useData('Get', { id: 1 }, { fetcher: () => Promise.resolve('fixture') }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data).toEqual('fixture');
@@ -135,7 +135,7 @@ describe('SWR fetcher integration', () => {
       );
     }
 
-    const { result } = renderHook(() => instance.useData<string>('Get', { id: 1 }), { wrapper: Wrapper });
+    const { result } = renderHook(() => instance.useData('Get', { id: 1 }), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.data).toEqual('c1:Get:1');
@@ -151,7 +151,7 @@ describe('SWR fetcher integration', () => {
 
     // `timeout` is not part of the key (see the fake backend's argKey)
     const { result, rerender } = renderHook(
-      ({ timeout }: { timeout: number }) => instance.useData<string>('Get', { id: 1, timeout }),
+      ({ timeout }: { timeout: number }) => instance.useData('Get', { id: 1, timeout }),
       { wrapper, initialProps: { timeout: 1 } }
     );
 
@@ -188,7 +188,7 @@ describe('SWR fetcher integration', () => {
     const inner: FakeClient = { name: 'inner' };
 
     function Probe() {
-      const { data } = instance.useData<string>('Get', { id: 1 });
+      const { data } = instance.useData('Get', { id: 1 });
       return <output>{data ?? 'loading'}</output>;
     }
 

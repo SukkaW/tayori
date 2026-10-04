@@ -1,21 +1,25 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 
-import { heyApiBackend } from './backend';
+import { createHeyApiBackend } from './backend';
 import type { HeyAPIClientLike } from './backend';
+import type { FakeSdkOptions, FakeSdkResult } from '../test/fake-sdk';
 
 const client: HeyAPIClientLike = { buildUrl: undefined, getConfig: undefined, request: undefined, setConfig: undefined };
 
 function createSdk() {
-  const received: Array<Record<string, unknown>> = [];
-  const sdk = (options: Record<string, unknown>) => {
+  const received: FakeSdkOptions[] = [];
+  const sdk = (options: FakeSdkOptions) => {
     received.push(options);
     return Promise.resolve({ data: 'ok', request: new Request('https://example.com'), response: new Response() });
   };
   return { sdk, received };
 }
 
-describe('heyApiBackend', () => {
+describe('createHeyApiBackend', () => {
+  // typed the way `tayori<Options, RequestResult>()` types it
+  const heyApiBackend = createHeyApiBackend<FakeSdkOptions, Promise<FakeSdkResult<string>>>();
+
   it('forces throwOnError, responseStyle and kyOptions.throwHttpErrors without mutating the caller\'s options', async () => {
     const kyOptions = { retry: 0 };
     const sdkArg = { query: { id: 1 }, kyOptions };

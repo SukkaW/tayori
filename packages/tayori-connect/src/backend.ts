@@ -1,7 +1,7 @@
 import type { DescMessage, DescMethod, DescMethodUnary, JsonValue, MessageInitShape, MessageShape, Registry } from '@bufbuild/protobuf';
 import { create, toJson } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
-import type { CacheTag, TayoriBackend } from 'tayori-core';
+import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /**
  * Connect per-call options that tayori-connect forwards to the transport: exactly what you would
@@ -37,6 +37,36 @@ export interface TayoriConnectMutationRequest<I extends DescMessage = DescMessag
 /** Loosely typed unary method descriptor used by the runtime */
 export type AnyUnaryMethod = DescMethodUnary;
 export type AnyMessage = MessageShape<DescMessage>;
+
+/** The request message descriptor of a unary method descriptor */
+export type MethodInput<Method> = Method extends DescMethodUnary<infer I> ? I : never;
+/** The response message descriptor of a unary method descriptor */
+export type MethodOutput<Method> = Method extends DescMethodUnary<DescMessage, infer O> ? O : never;
+
+/** `DescMethodUnary<I, O>` → `TayoriConnectRequest<I>` */
+export interface TayoriConnectRequestOf extends TypeFn {
+  readonly output: TayoriConnectRequest<MethodInput<this['input']>>
+}
+/** `DescMethodUnary<I, O>` → `TayoriConnectMutationRequest<I>` */
+export interface TayoriConnectMutationRequestOf extends TypeFn {
+  readonly output: TayoriConnectMutationRequest<MethodInput<this['input']>>
+}
+/** `DescMethodUnary<I, O>` → `MessageShape<O>` */
+export interface TayoriConnectResponseOf extends TypeFn {
+  readonly output: MessageShape<MethodOutput<this['input']>>
+}
+
+/** The `TayoriTypes` of the Connect backend: hooks accept unary method descriptors and type the request / response from them */
+export interface TayoriConnectTypes extends TayoriTypes {
+  readonly Method: AnyUnaryMethod,
+  readonly Arg: TayoriConnectMutationRequest,
+  readonly Data: AnyMessage,
+  readonly ArgOf: TayoriConnectRequestOf,
+  readonly MutationArgOf: TayoriConnectMutationRequestOf,
+  readonly DataOf: TayoriConnectResponseOf
+}
+
+export type TayoriConnectBackend = TayoriBackend<TayoriConnectTypes, Transport>;
 
 /**
  * Slot 1 of a tayori-connect SWR key: `<service type name>/<method name>`, e.g.
@@ -94,12 +124,7 @@ export interface TayoriConnectBackendOptions {
   registry?: Registry
 }
 
-export function createConnectBackend({ registry }: TayoriConnectBackendOptions = {}): TayoriBackend<
-  AnyUnaryMethod,
-  TayoriConnectMutationRequest,
-  AnyMessage,
-  Transport
-> {
+export function createConnectBackend({ registry }: TayoriConnectBackendOptions = {}): TayoriConnectBackend {
   const jsonOptions = registry ? { registry } : undefined;
 
   return {

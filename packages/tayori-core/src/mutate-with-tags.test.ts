@@ -27,9 +27,9 @@ describe('unstable_mutateWithTags', () => {
     let plainFetches = 0;
 
     const { result } = renderHook(() => ({
-      a: instance.useData<string>('Get', { id: 1, cacheTags: ['#a'] }),
-      ab: instance.useData<string>('Get', () => ({ id: 2, cacheTags: ['#a', '#b'] })),
-      untagged: instance.useData<string>('Get', { id: 3 }),
+      a: instance.useData('Get', { id: 1, cacheTags: ['#a'] }),
+      ab: instance.useData('Get', () => ({ id: 2, cacheTags: ['#a', '#b'] })),
+      untagged: instance.useData('Get', { id: 3 }),
       plain: useSWR('plain-key', () => {
         plainFetches += 1;
         return 'plain';
@@ -85,8 +85,8 @@ describe('unstable_mutateWithTags', () => {
 
     // Two separate component trees: each reads `data` during render (as a real component would),
     // otherwise SWR would not re-render the tree whose fetch settles while the other one is awaited.
-    const { result: a } = renderHook(() => instanceA.useData<string>('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperA });
-    const { result: b } = renderHook(() => instanceB.useData<string>('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperB });
+    const { result: a } = renderHook(() => instanceA.useData('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperA });
+    const { result: b } = renderHook(() => instanceB.useData('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperB });
 
     await waitFor(() => {
       expect(a.current).toEqual('tags-alpha:Get:1');
