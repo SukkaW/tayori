@@ -1,4 +1,4 @@
-import { afterEach, describe, it } from 'mocha';
+import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -13,7 +13,7 @@ import { EchoResponseSchema, TestService } from '../test/gen/tayori/test/v1/test
 import type { EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
 import { createTestTransport } from '../test/router';
 import { createWrapper } from '../test/wrapper';
-import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
+import { createTag } from '../test/cache-tag';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, useTransport, TayoriProvider } = tayoriConnect();
 
@@ -382,16 +382,15 @@ describe('useTransport', () => {
 });
 
 describe('unstable_mutateWithTags', () => {
-  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches the default cache, so these
-  // tests share it and clear every tayori-connect entry afterwards (inside act: the hooks are still mounted)
-  afterEach(() => clearTayoriDefaultCache());
-
+  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches SWR's default cache, so this
+  // test opts out of the isolated cache provider and uses tags unique to itself (see `createTag`)
   it('revalidates the hooks whose cacheTags match', async () => {
+    const [tag, other, unrelated] = [createTag('t'), createTag('other'), createTag('unrelated')];
     const { transport, calls } = createTestTransport();
     const wrapper = createWrapper({ TayoriProvider, initTransport: () => transport, swr: { provider: undefined } });
 
     const { result } = renderHook(() => ({
-      tagged: useData(TestService.method.echo, { message: { text: 'tagged' }, cacheTags: ['#t', '#other'] }),
+      tagged: useData(TestService.method.echo, { message: { text: 'tagged' }, cacheTags: [tag, other] }),
       untagged: useData(TestService.method.echo, { message: { text: 'untagged' } })
     }), { wrapper });
 
@@ -402,12 +401,12 @@ describe('unstable_mutateWithTags', () => {
     expect(calls.length).toEqual(2);
 
     await act(async () => {
-      await unstable_mutateWithTags(['#t']);
+      await unstable_mutateWithTags([tag]);
     });
     expect(calls.map((call) => call.request.text)).toEqual(['tagged', 'untagged', 'tagged']);
 
     await act(async () => {
-      await unstable_mutateWithTags(['#unrelated']);
+      await unstable_mutateWithTags([unrelated]);
     });
     expect(calls.length).toEqual(3);
   });
