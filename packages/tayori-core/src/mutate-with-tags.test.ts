@@ -1,4 +1,4 @@
-import { describe, it, afterEach } from 'mocha';
+import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import useSWR, { mutate } from 'swr';
@@ -7,19 +7,17 @@ import { createTayori, isTayoriKey, unstable_mutateWithTags } from '.';
 import { createFakeBackend } from '../test/fake-backend';
 import type { FakeArg, FakeBackend, FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
-import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
+import { createTag } from '../test/cache-tag';
 
 const fetchedIds = (backend: FakeBackend) => backend.calls.map((call) => call.arg.id);
 
 describe('unstable_mutateWithTags', () => {
-  // mutateWithTags goes through SWR's global `mutate`, which only reaches the default SWR cache.
-  // So these tests opt out of the isolated cache provider, and afterwards reset every tayori entry
-  // of the default cache so that no test sees the data of another one.
-  afterEach(() => {
-    clearTayoriDefaultCache();
-  });
+  // mutateWithTags goes through SWR's global `mutate`, which only reaches SWR's default cache. So
+  // these tests opt out of the isolated cache provider (`provider: undefined`) and use tags unique
+  // to each test, so that the entries they leave behind can never match in another test.
 
   it('revalidates exactly the entries sharing a tag (thunk args included) and nothing else', async () => {
+    const [tagA, tagB, tagNobody] = [createTag('a'), createTag('b'), createTag('nobody')];
     const backend = createFakeBackend();
     const client: FakeClient = { name: 'tags' };
     const instance = createTayori(backend);
@@ -27,10 +25,10 @@ describe('unstable_mutateWithTags', () => {
     let plainFetches = 0;
 
     const { result } = renderHook(() => ({
-      a: instance.useData('Get', { id: 1, cacheTags: ['#a'] }),
-      ab: instance.useData('Get', () => ({ id: 2, cacheTags: ['#a', '#b'] })),
+      a: instance.useData('Get', { id: 1, cacheTags: [tagA] }),
+      ab: instance.useData('Get', () => ({ id: 2, cacheTags: [tagA, tagB] })),
       untagged: instance.useData('Get', { id: 3 }),
-      plain: useSWR('plain-key', () => {
+      plain: useSWR(`plain-${tagA}`, () => {
         plainFetches += 1;
         return 'plain';
       })
@@ -50,23 +48,23 @@ describe('unstable_mutateWithTags', () => {
     });
     expect(fetchedIds(backend)).toEqual([1, 2, 3]);
 
-    // only the thunk-arg entry carries #b
+    // only the thunk-arg entry carries tagB
     let revalidated: unknown[] = [];
     await act(async () => {
-      revalidated = await unstable_mutateWithTags(['#b']);
+      revalidated = await unstable_mutateWithTags([tagB]);
     });
     expect(revalidated).toEqual(['tags:Get:2']);
     expect(fetchedIds(backend).slice(3)).toEqual([2]);
 
-    // both tagged entries carry #a
+    // both tagged entries carry tagA
     await act(async () => {
-      await unstable_mutateWithTags(['#a']);
+      await unstable_mutateWithTags([tagA]);
     });
     expect(fetchedIds(backend).slice(4).sort()).toEqual([1, 2]);
 
     // unknown tags match nothing
     await act(async () => {
-      await unstable_mutateWithTags(['#nobody']);
+      await unstable_mutateWithTags([tagNobody]);
     });
     expect(backend.calls.length).toEqual(6);
 
@@ -76,6 +74,7 @@ describe('unstable_mutateWithTags', () => {
   });
 
   it('matches tagged entries of every tayori instance and backend', async () => {
+    const shared = createTag('shared');
     const backendA = createFakeBackend('alpha');
     const backendB = createFakeBackend('beta');
     const instanceA = createTayori(backendA);
@@ -85,8 +84,8 @@ describe('unstable_mutateWithTags', () => {
 
     // Two separate component trees: each reads `data` during render (as a real component would),
     // otherwise SWR would not re-render the tree whose fetch settles while the other one is awaited.
-    const { result: a } = renderHook(() => instanceA.useData('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperA });
-    const { result: b } = renderHook(() => instanceB.useData('Get', { id: 1, cacheTags: ['#shared'] }).data, { wrapper: wrapperB });
+    const { result: a } = renderHook(() => instanceA.useData('Get', { id: 1, cacheTags: [shared] }).data, { wrapper: wrapperA });
+    const { result: b } = renderHook(() => instanceB.useData('Get', { id: 1, cacheTags: [shared] }).data, { wrapper: wrapperB });
 
     await waitFor(() => {
       expect(a.current).toEqual('tags-alpha:Get:1');
@@ -96,7 +95,7 @@ describe('unstable_mutateWithTags', () => {
     });
 
     await act(async () => {
-      await unstable_mutateWithTags(['#shared']);
+      await unstable_mutateWithTags([shared]);
     });
 
     expect(backendA.calls.length).toEqual(2);

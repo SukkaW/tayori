@@ -1,16 +1,15 @@
-import { afterEach, describe, it } from 'mocha';
+import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Middleware } from 'swr';
-import { mutate } from 'swr';
 import sinon from 'sinon';
 
 import { isInternalSWRKey, isZodError, tayori, unstable_mutateWithTags } from '.';
 import { createFakeClient, createFakeSdk } from '../test/fake-sdk';
 import type { FakeSdkOptions } from '../test/fake-sdk';
 import { createWrapper } from '../test/wrapper';
-import { clearTayoriDefaultCache } from '../../../test/swr-cache.cjs';
+import { createTag } from '../test/cache-tag';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, TayoriProvider } = tayori();
 
@@ -314,17 +313,16 @@ describe('isInternalSWRKey', () => {
 });
 
 describe('unstable_mutateWithTags', () => {
-  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches the default cache, so these
-  // tests share it and clear every tayori entry afterwards (inside act: the hooks are still mounted)
-  afterEach(() => clearTayoriDefaultCache());
-
+  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches SWR's default cache, so this
+  // test opts out of the isolated cache provider and uses tags unique to itself (see `createTag`)
   it('revalidates the hooks whose cacheTags match', async () => {
+    const [tag, other, unrelated] = [createTag('t'), createTag('other'), createTag('unrelated')];
     const client = createFakeClient();
     const wrapper = createWrapper({ TayoriProvider, initClient: () => client, swr: { provider: undefined } });
     const { sdk, calls } = createFakeSdk<Item>((options) => ({ id: Number(options.query?.id) }));
 
     const { result } = renderHook(() => ({
-      tagged: useData(sdk, { query: { id: 1 }, cacheTags: ['#t', '#other'] }),
+      tagged: useData(sdk, { query: { id: 1 }, cacheTags: [tag, other] }),
       untagged: useData(sdk, { query: { id: 2 } })
     }), { wrapper });
 
@@ -335,12 +333,12 @@ describe('unstable_mutateWithTags', () => {
     expect(calls.length).toEqual(2);
 
     await act(async () => {
-      await unstable_mutateWithTags(['#t']);
+      await unstable_mutateWithTags([tag]);
     });
     expect(calls.map((call) => call.query)).toEqual([{ id: 1 }, { id: 2 }, { id: 1 }]);
 
     await act(async () => {
-      await unstable_mutateWithTags(['#unrelated']);
+      await unstable_mutateWithTags([unrelated]);
     });
     expect(calls.length).toEqual(3);
   });

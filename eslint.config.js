@@ -6,9 +6,7 @@ module.exports = require('eslint-config-sukka').sukka({
   ignores: {
     customGlobs: [
       './packages/example-nextjs-app/src/sdk/**/*',
-      './packages/tayori-connect/test/gen/**/*',
-      // hand-written declaration for the shared CommonJS test helper, not part of any TS project
-      './test/*.d.cts'
+      './packages/tayori-connect/test/gen/**/*'
     ]
   },
   next: [
