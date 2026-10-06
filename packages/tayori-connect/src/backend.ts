@@ -1,6 +1,7 @@
 import type { DescMessage, DescMethod, DescMethodUnary, JsonValue, MessageInitShape, MessageShape, Registry } from '@bufbuild/protobuf';
 import { create, toJson } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
+import { headersToObject } from 'foxts/headers-to-object';
 import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /**
@@ -94,28 +95,6 @@ export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
   return key;
 }
 
-/**
- * A plain, sorted record of the given headers, or `undefined` when there are none
- */
-function headersKey(init: HeadersInit | undefined): Record<string, string> | undefined {
-  if (init === undefined) return undefined;
-  // `Headers` accepts every HeadersInit shape and joins duplicate names. Names are lower-cased and
-  // sorted here rather than relying on the environment's `Headers` to do it (not every DOM
-  // implementation follows the spec there), since the result feeds SWR's key hash.
-  const entries: Array<[name: string, value: string]> = [];
-  for (const [name, value] of new Headers(init)) {
-    entries.push([name.toLowerCase(), value]);
-  }
-  if (entries.length === 0) return undefined;
-  entries.sort(([a], [b]) => (a < b ? -1 : (a > b ? 1 : 0)));
-  const result: Record<string, string> = {};
-  for (let i = 0, len = entries.length; i < len; i++) {
-    const [name, value] = entries[i];
-    result[name] = value;
-  }
-  return result;
-}
-
 export interface TayoriConnectBackendOptions {
   /**
    * A protobuf-es `Registry` used when serializing the request message for the SWR key.
@@ -136,10 +115,9 @@ export function createConnectBackend({ registry }: TayoriConnectBackendOptions =
       const argKey: TayoriConnectArgKey = {
         message: toJson(method.input, create(method.input, request.message), jsonOptions)
       };
-      const headers = headersKey(request.headers);
-      if (headers) {
-        argKey.headers = headers;
-      }
+      const headers = headersToObject(request.headers);
+      argKey.headers = headers;
+
       return [argKey, request.cacheTags];
     },
     // Same as what Connect's own `createClient()` does for unary methods

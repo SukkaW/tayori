@@ -40,6 +40,7 @@
   "author": "Sukka <https://skk.moe>",
   "license": "MIT",
   "dependencies": {
+    "foxts": "^5.9.1",
     "tayori-core": "workspace:^"
   },
   "devDependencies": {

@@ -233,6 +233,9 @@ importers:
 
   packages/tayori-connect:
     dependencies:
+      foxts:
+        specifier: ^5.9.1
+        version: 5.9.1
       tayori-core:
         specifier: workspace:^
         version: link:../tayori-core
