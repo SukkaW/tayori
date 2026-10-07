@@ -7,14 +7,14 @@
     "build": "next build --webpack && cfpages-early-hints generate"
   },
   "dependencies": {
-    "@shikijs/transformers": "^4.4.3",
-    "foxact": "^0.3.11",
+    "@shikijs/transformers": "^4.5.0",
+    "foxact": "^0.3.12",
     "foxmd": "^0.3.3",
-    "next": "^16.3.5",
+    "next": "^16.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-wrap-balancer": "^1.1.1",
-    "shiki": "^4.4.3",
+    "shiki": "^4.5.0",
     "ts-dedent": "^2.3.0",
     "vaul": "^1.1.2"
   },
@@ -30,7 +30,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "cfpages-early-hints": "^1.0.0",
     "raw-loader": "^4.0.2",
-    "schema-dts": "^2.0.0",
+    "schema-dts": "^2.1.0",
     "stylex-webpack": "^0.5.0"
   }
 }
