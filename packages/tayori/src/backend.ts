@@ -32,8 +32,26 @@ export const HEY_API_BACKEND_NAME = 'tayori';
 // already constrain the method, and an unconstrained alias keeps its name in the hooks' signatures
 // (`SdkData<M>` rather than an inlined conditional type) when TypeScript prints them.
 type SdkReturn<SdkMethod> = SdkMethod extends (...args: any) => infer R ? Awaited<R> : never;
-export type SdkData<SdkMethod> =
-  SdkReturn<SdkMethod> extends { data: infer D, request?: Request, response?: Response } ? NonNullable<D> : never;
+
+/**
+ * The response body behind one member of an SDK function's result type. tayori always calls SDK
+ * functions with `responseStyle: 'fields'` and returns `.data`, so the hook data is the response body
+ * in both of Hey API's response styles. Only the declared result type differs:
+ *
+ * - `responseStyle: 'fields'`: `{ data, request, response }` (or `{ data, error } & { request?, response? }`
+ *   when `throwOnError` is not `true`), the body is `data`.
+ * - `responseStyle: 'data'`: the result is the body itself, which may have a `data` field of its own
+ *   (e.g. a paginated `{ data, meta }` envelope).
+ *
+ * A fields result is recognized by its `response` property holding a fetch `Response`, which a JSON
+ * body never has. This is decided per SDK function: the style is a type argument of each generated
+ * function, the generated client's `RequestResult` is the same type in both styles.
+ */
+type SdkResultBody<Result> = Result extends { data: infer D, response?: Response }
+  ? ('response' extends keyof Result ? D : Result)
+  : Result;
+
+export type SdkData<SdkMethod> = NonNullable<SdkResultBody<SdkReturn<SdkMethod>>>;
 
 type OriginalSdkArg<SdkMethod> = SdkMethod extends (...args: infer P) => any
   ? Omit<NonNullable<P[0]>, 'responseStyle' | 'throwOnError'>
@@ -62,9 +80,9 @@ export interface SdkDataOf extends TypeFn {
 export type HeyApiSdkArg<SDKOptions extends GeneralSdkOptions = any> = SDKOptions & { cacheTags?: CacheTag[] };
 
 /**
- * What a Hey API SDK function resolves to. Hey API's `RequestResult` is a conditional type over
- * `throwOnError` / `responseStyle` (and differs between client plugins and versions), so this cannot
- * be inferred from a method: it is the `RequestResult` type the user passes to `tayori<Options, RequestResult>()`.
+ * What tayori's internal SDK call resolves to: the `RequestResult` type passed to
+ * `tayori<Options, RequestResult>()`. tayori always calls SDK functions with `responseStyle: 'fields'`
+ * and reads `.data`. The hooks' public types do not depend on it, see `SdkData`.
  */
 export type HeyApiSdkResult<SDKRequestResult extends GeneralSdkRequestResult = DefaultSdkRequestResult> = Awaited<SDKRequestResult>;
 export type HeyApiSdkData<SDKRequestResult extends GeneralSdkRequestResult = DefaultSdkRequestResult> =

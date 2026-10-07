@@ -2,13 +2,12 @@ import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
-import { mutate } from 'swr';
 import sinon from 'sinon';
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import type { Transport } from '@connectrpc/connect';
 
-import { isTayoriConnectKey, tayoriConnect, unstable_mutateWithTags } from '.';
+import { tayoriConnect, unstable_mutateWithTags } from '.';
 import { EchoResponseSchema, TestService } from '../test/gen/tayori/test/v1/test_pb';
 import type { EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
 import { createTestTransport } from '../test/router';

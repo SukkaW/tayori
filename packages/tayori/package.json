@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "bunchee --minify --no-sourcemap",
+    "generate": "openapi-ts",
     "lint": "eslint --format=sukka .",
     "test": "SWC_NODE_IGNORE_DYNAMIC=1 SWC_NODE_INLINE_SOURCE_MAP=1 nyc mocha"
   },
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.14.5",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@swc-node/register": "^1.12.1",
     "@swc/core": "^1.16.13",
     "@testing-library/dom": "^10.4.2",

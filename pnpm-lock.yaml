@@ -173,6 +173,9 @@ importers:
       '@happy-dom/global-registrator':
         specifier: ^20.14.5
         version: 20.14.5
+      '@hey-api/openapi-ts':
+        specifier: ^0.99.0
+        version: 0.99.0(typescript@6.0.3)
       '@swc-node/register':
         specifier: ^1.12.1
         version: 1.12.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(@swc/types@0.1.28)(supports-color@8.1.1)(typescript@6.0.3)

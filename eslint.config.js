@@ -6,7 +6,8 @@ module.exports = require('eslint-config-sukka').sukka({
   ignores: {
     customGlobs: [
       './packages/example-nextjs-app/src/sdk/**/*',
-      './packages/tayori-connect/test/gen/**/*'
+      './packages/tayori-connect/test/gen/**/*',
+      './packages/tayori/test/gen/**/*'
     ]
   },
   next: [

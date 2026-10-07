@@ -12,7 +12,7 @@ yarn add tayori
 
 In your Hey API configuration file (`openapi-ts.config.ts`), modify a few settings:
 
-- Set `responseStyle` to `fields` in `@hey-api/sdk` plugin options
+- `responseStyle` of the `@hey-api/sdk` plugin can be either `fields` (the default) or `data` (Hey API only supports it with `@hey-api/client-fetch`). tayori always requests the full response internally and hands your components the response body, so the hooks are typed the same in both styles.
 - Enable `throwOnError` and `includeInEntry` in your chosen Hey API client plugin options (e.g. `@hey-api/client-ky`, `@hey-api/client-fetch`, etc.)
 
 ```ts
@@ -24,7 +24,7 @@ export default defineConfig({
     {
       name: '@hey-api/sdk',
       // ... other options
-      responseStyle: 'fields' // [!code highlight]
+      responseStyle: 'fields' // or 'data', both work with tayori
     },
     {
       name: '@hey-api/client-ky',
@@ -93,7 +93,7 @@ export function DataFetchingProvider({ children }: React.PropsWithChildren) {
 }
 ```
 
-`tayori()` takes two type arguments from your generated code: `Options` (what every SDK function accepts) and `RequestResult` (what every SDK function resolves to). The request options and the response type of each hook are inferred from the SDK function you pass to it, but Hey API's `RequestResult` is a conditional type over `throwOnError` / `responseStyle` and differs between client plugins and versions, so tayori cannot infer how to read the response from an SDK function alone. These two types tell it how.
+`tayori()` accepts your generated `Options` and `RequestResult` types, which type the SDK call tayori makes internally. They are optional: every hook infers its request options and its response type from the SDK function you pass to it, so `tayori()` without type arguments gives you the same hooks.
 
 By initializing the Hey API client within React through `<TayoriProvider />`, you get access to React context and hooks within your Hey API client, which provides great flexibility for handling auth and other dynamic configurations.
 
@@ -722,4 +722,5 @@ tayori 0.4.0 splits the project into `tayori-core` (the shared runtime), `tayori
 - **Hooks outside `<TayoriProvider />` throw.** `useData`, `useDataImmutable` and `useInfinite` used to silently never fetch when no provider was mounted; they now throw at render with a clear message, like `useMutation` and `usePreload` already did.
 - **`kyOptions.throwHttpErrors` is forced for mutations too.** `useData` already set it for `@hey-api/client-ky`; `useMutation().trigger()` now goes through the same code path, so non-2xx responses always throw.
 - **Tag invalidation reaches more entries.** `unstable_mutateWithTags()` now also revalidates requests whose options were passed as a function, and the new `unstable_useMutateWithTags()` hook uses the cache provider of the nearest `<SWRConfig />`.
+- **`responseStyle: 'data'` SDKs are supported.** Hooks used to be typed as `never` (`data: undefined`) for SDKs generated with `responseStyle: 'data'`; they now resolve to the response body in both styles, and the `Options` / `RequestResult` type arguments of `tayori()` are optional.
 - **Fetchers.** A `fetcher` passed in a hook's own SWR options is honoured (handy for tests and stories), while a global `fetcher` in `<SWRConfig />` is no longer applied to tayori requests.
