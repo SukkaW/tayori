@@ -27,7 +27,8 @@
     "build": "bunchee --minify --no-sourcemap",
     "generate": "openapi-ts",
     "lint": "eslint --format=sukka .",
-    "test": "SWC_NODE_IGNORE_DYNAMIC=1 SWC_NODE_INLINE_SOURCE_MAP=1 nyc mocha"
+    "test": "SWC_NODE_IGNORE_DYNAMIC=1 SWC_NODE_INLINE_SOURCE_MAP=1 nyc mocha",
+    "typecheck": "tsc --build --noEmit"
   },
   "keywords": [
     "SWR",

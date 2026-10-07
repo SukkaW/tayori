@@ -6,10 +6,11 @@
     "url": "git+https://github.com/SukkaW/tayori.git"
   },
   "scripts": {
-    "build": "pnpm -r --filter tayori-core --filter tayori --filter tayori-connect run build",
-    "test": "pnpm -r run test",
-    "lint": "eslint --format=sukka .",
-    "typecheck": "tsc --build --noEmit",
+    "build": "turbo run build --filter=tayori-core --filter=tayori --filter=tayori-connect",
+    "generate": "turbo run generate",
+    "test": "turbo run test",
+    "lint": "turbo run build generate --filter=tayori-core --filter=tayori --filter=tayori-connect && eslint --format=sukka .",
+    "typecheck": "turbo run typecheck",
     "example:dev": "pnpm --filter example-nextjs-app dev",
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
@@ -28,6 +29,7 @@
     "happy-dom": "^20.14.5",
     "react": "^19.3.0",
     "swr": "^2.5.1",
+    "turbo": "^2.11.7",
     "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@11.28.5"

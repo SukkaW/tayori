@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack && cfpages-early-hints generate"
+    "build": "next build --webpack && cfpages-early-hints generate",
+    "typecheck": "tsc --build --noEmit"
   },
   "dependencies": {
     "@shikijs/transformers": "^4.5.0",

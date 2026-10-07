@@ -137,3 +137,9 @@ coverage/
 
 # local pnpm store (created when the global store is not writable)
 .pnpm-store/
+
+# turborepo
+.turbo/
+
+# test fixtures generated from a schema: `pnpm run generate`, run automatically before test / typecheck
+packages/*/test/gen/

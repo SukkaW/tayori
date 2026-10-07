@@ -1,0 +1,42 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "futureFlags": {
+    "globalConfiguration": true
+  },
+  "global": {
+    // Not part of any hash, they only tell tools where to put temporary / cache files (turbo's strict
+    // env mode would otherwise strip them, e.g. swc-node then falls back to /tmp)
+    "passThroughEnv": ["TMPDIR", "BUF_CACHE_DIR", "SWC_NATIVE_BINDING_CACHE"]
+  },
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json", "!**/*.test.{ts,tsx}", "!test/**", "!tests/**", "!**/*.md"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "out/**"]
+    },
+    // Test fixtures generated from a schema (gitignored). Each generator only depends on its own
+    // config and schema (plus the generator version, which turbo hashes from the lockfile).
+    "generate": {
+      "outputs": ["test/gen/**"]
+    },
+    "tayori#generate": {
+      "inputs": ["openapi-ts.config.ts", "test/openapi/**"],
+      "outputs": ["test/gen/**"]
+    },
+    "tayori-connect#generate": {
+      "inputs": ["buf.gen.yaml", "proto/**"],
+      "outputs": ["test/gen/**"]
+    },
+    // Adapter packages import tayori-core through its built `dist`, and tests import the fixtures
+    "test": {
+      "dependsOn": ["^build", "generate"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.mocharc.cjs", "$TURBO_ROOT$/.nycrc", "$TURBO_ROOT$/test/**"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "generate"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tsconfig.base.json"],
+      "outputs": []
+    }
+  }
+}
