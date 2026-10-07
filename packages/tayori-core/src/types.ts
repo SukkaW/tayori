@@ -110,14 +110,15 @@ export interface TayoriBackend<T extends TayoriTypes = TayoriTypes, Client = unk
    */
   methodKey(method: T['Method']): unknown,
   /**
-   * Slot 2 of the SWR key, plus the `cacheTags` found in the arg (slot 3). `argKey` must be plain,
-   * stable data that identifies the response: everything in the arg that can change what the server
-   * answers (the request itself, headers, ...) and nothing that cannot (timeouts, callbacks, signals).
+   * Slot 2 of the SWR key, plus the `cacheTags` found in the arg (slot 3). Keys are lossless: the
+   * hooks send exactly what is in slot 2, so `argKey` is the arg itself without `cacheTags`, at
+   * most normalized into an equivalent request that hashes more stably across renders (e.g. headers
+   * as a plain object). It may leave out what only `useMutation().trigger()` uses (an abort signal).
    */
   argKey(method: T['Method'], arg: T['Arg']): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
   /**
-   * Perform the request. Used both as the SWR fetcher and by `useMutation().trigger()`; `arg` is the
-   * original (latest) arg of the hook, not the key.
+   * Perform the request. The hooks pass the request stored in the key (slot 2, see `argKey`),
+   * `useMutation().trigger()` passes its arg as is.
    */
   call(client: Client, method: T['Method'], arg: T['Arg']): Promise<T['Data']>
   // Reserved extension point (not implemented yet): server streaming

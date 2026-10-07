@@ -1,6 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { createTayori } from '.';
 import { createFakeBackend } from '../test/fake-backend';
@@ -71,8 +72,8 @@ describe('useDataImmutable', () => {
   });
 });
 
-describe('useData key building errors', () => {
-  it('throws at render when backend.argKey fails, for object and function args alike', () => {
+describe('useData requests that cannot be keyed', () => {
+  it('treats them as not ready and pauses, for object and function args alike, like a throwing SWR key function', async () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
@@ -82,10 +83,19 @@ describe('useData key building errors', () => {
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
-    // a key that cannot be built is a configuration error: fail loudly instead of handing SWR an
-    // error it would retry forever
-    expect(() => renderHook(() => instance.useData('Get', { id: 13 }), { wrapper })).toThrow('cannot serialize');
-    expect(() => renderHook(() => instance.useData('Get', () => ({ id: 13 })), { wrapper })).toThrow('cannot serialize');
+    // SWR only re-renders for the fields a render has read, so read them during render
+    const { result } = renderHook(() => {
+      const object = instance.useData('Get', { id: 13 });
+      const thunk = instance.useData('Get', () => ({ id: 13 }));
+      return [object, thunk].map(({ isLoading, data, error }) => ({ isLoading, data, error }));
+    }, { wrapper });
+
+    // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of tayori-core
+    await act(() => delay(20));
+    expect(result.current).toEqual([
+      { isLoading: false, data: undefined, error: undefined },
+      { isLoading: false, data: undefined, error: undefined }
+    ]);
     expect(backend.calls).toEqual([]);
   });
 });

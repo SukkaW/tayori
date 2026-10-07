@@ -4,16 +4,14 @@ import type { Transport } from '@connectrpc/connect';
 import type { BrandedTayoriKeyLoader, TayoriKey } from 'tayori-core';
 import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 
-import type { TayoriConnectArgKey, TayoriConnectBackendOptions, TayoriConnectMethodKey } from './backend';
+import type { TayoriConnectMethodKey, TayoriConnectRequest } from './backend';
 import { createConnectBackend } from './backend';
 
 export type { CacheTag, Falsy, UseMutationOptions } from 'tayori-core';
 export type {
   MethodInput,
   MethodOutput,
-  TayoriConnectArgKey,
   TayoriConnectBackend,
-  TayoriConnectBackendOptions,
   TayoriConnectCallOptions,
   TayoriConnectMethodKey,
   TayoriConnectMutationRequest,
@@ -22,7 +20,13 @@ export type {
 } from './backend';
 
 /**
- * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", { message, headers? }, cacheTags]`
+ * Slot 2 of a tayori-connect SWR key: the request itself without `cacheTags`, with the message
+ * created (`create()`) and the headers as a plain record with lower-cased names.
+ */
+export type TayoriConnectArgKey = Omit<TayoriConnectRequest, 'cacheTags'>;
+
+/**
+ * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", request, cacheTags]`
  */
 export type TayoriConnectKey = TayoriKey<Transport, TayoriConnectMethodKey, TayoriConnectArgKey>;
 
@@ -66,8 +70,8 @@ export interface TayoriConnectProviderProps extends React.PropsWithChildren {
  * } = tayoriConnect();
  * ```
  */
-export function tayoriConnect(options?: TayoriConnectBackendOptions) {
-  const core = createTayori(createConnectBackend(options));
+export function tayoriConnect() {
+  const core = createTayori(createConnectBackend());
 
   const CoreProvider = core.TayoriProvider;
 
@@ -179,7 +183,7 @@ export function tayoriConnect(options?: TayoriConnectBackendOptions) {
  * function for `useInfinite`, so check `Array.isArray(key)` before indexing into it.
  */
 export function isTayoriConnectKey(key: unknown): key is TayoriConnectKey | BrandedTayoriKeyLoader<Transport, TayoriConnectMethodKey, TayoriConnectArgKey> {
-  return isTayoriKey(key) && key[kTayoriKey].backend === 'tayori-connect';
+  return isTayoriKey(key) && key[kTayoriKey] === 'tayori-connect';
 }
 
 export { unstable_mutateWithTags, unstable_useMutateWithTags } from 'tayori-core';

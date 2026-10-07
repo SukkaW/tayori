@@ -1,6 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { setTimeout as delay } from 'node:timers/promises';
 import { unstable_serialize, useSWRConfig } from 'swr';
 
 import { createTayori } from '.';
@@ -94,7 +95,7 @@ describe('useInfinite', () => {
     expect(backend.calls.map((call) => call.method)).toEqual(['Other']);
   });
 
-  it('puts arg-level cacheTags into every page key and forwards the whole arg to the backend', async () => {
+  it('puts arg-level cacheTags into every page key and sends the rest of the arg to the backend', async () => {
     const { backend, client, instance, wrapper } = setup();
 
     const { result } = renderHook(() => ({
@@ -115,19 +116,23 @@ describe('useInfinite', () => {
     const cachedPage = (method: string, arg: FakeArg) => cache.get(unstable_serialize(instance.getKey(client, method, arg)))?.data;
 
     // cacheTags are part of the page key
-    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'] })).toEqual('c1:List:1');
-    expect(cachedPage('List', { id: 1 })).toEqual(undefined);
-    // `timeout` is not part of the key (see the fake backend), but the whole arg reaches the backend
-    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 99 })).toEqual('c1:List:1');
-    expect(backend.calls.map((call) => call.arg)).toEqual([{ id: 1, cacheTags: ['#arg'], timeout: 7 }]);
+    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 7 })).toEqual('c1:List:1');
+    expect(cachedPage('List', { id: 1, timeout: 7 })).toEqual(undefined);
+    // keys are lossless, so another `timeout` is another request
+    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 99 })).toEqual(undefined);
+    // the backend receives the request stored in the page key: everything but tayori's cacheTags
+    expect(backend.calls.map((call) => call.arg)).toEqual([{ id: 1, timeout: 7 }]);
   });
 });
 
-describe('useInfinite key building errors', () => {
-  it('surfaces errors thrown by backend.argKey through SWR error instead of pausing', async () => {
+// The loader goes to SWR as is, so SWR's semantics for a throwing key loader apply: "not ready" on the
+// first page (SWR builds it during render, inside a try/catch), the hook's `error` on later pages
+// (SWR builds them inside its fetcher).
+describe('useInfinite requests that cannot be keyed', () => {
+  it('pause the hook when it is the first page', async () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
-      if (arg.id === 13) throw new Error('cannot serialize page');
+      if (arg.id === 13) throw new Error('cannot serialize');
       const { cacheTags, ...rest } = arg;
       return [rest, cacheTags];
     };
@@ -135,14 +140,35 @@ describe('useInfinite key building errors', () => {
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
     const { result } = renderHook(() => {
-      const { data, error } = instance.useInfinite('Get', () => ({ id: 13 }), { shouldRetryOnError: false });
+      const { isLoading, data, error } = instance.useInfinite('Get', () => ({ id: 13 }));
+      return { isLoading, data, error };
+    }, { wrapper });
+
+    // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of tayori-core
+    await act(() => delay(20));
+    expect(result.current).toEqual({ isLoading: false, data: undefined, error: undefined });
+    expect(backend.calls).toEqual([]);
+  });
+
+  it('surface through SWR error when it is a later page', async () => {
+    const backend = createFakeBackend();
+    backend.argKey = (_method, arg) => {
+      if (arg.id === 13) throw new Error('cannot serialize');
+      const { cacheTags, ...rest } = arg;
+      return [rest, cacheTags];
+    };
+    const instance = createTayori(backend);
+    const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
+
+    const { result } = renderHook(() => {
+      const { data, error } = instance.useInfinite('Get', (pageIndex) => ({ id: pageIndex === 0 ? 1 : 13 }), { initialSize: 2, shouldRetryOnError: false });
       return { data, error };
     }, { wrapper });
 
     await waitFor(() => {
       expect(result.current.error).toBeA(Error);
     });
-    expect((result.current.error as Error).message).toEqual('cannot serialize page');
-    expect(backend.calls).toEqual([]);
+    expect((result.current.error as Error).message).toEqual('cannot serialize');
+    expect(backend.calls.map((call) => call.arg)).toEqual([{ id: 1 }]);
   });
 });

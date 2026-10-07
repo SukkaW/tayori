@@ -130,16 +130,11 @@ describe('useData', () => {
     });
     const headers: Headers[] = [];
     const trailers: Headers[] = [];
+    // callbacks are part of the key and compare by identity: created once, not on every render
+    const onHeader = (header: Headers) => headers.push(header);
+    const onTrailer = (trailer: Headers) => trailers.push(trailer);
 
-    const { result } = renderHook(() => useData(TestService.method.echo, {
-      message: { text: 'x' },
-      onHeader(header) {
-        headers.push(header);
-      },
-      onTrailer(trailer) {
-        trailers.push(trailer);
-      }
-    }), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, { message: { text: 'x' }, onHeader, onTrailer }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data?.text).toEqual('x');

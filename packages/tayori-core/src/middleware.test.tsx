@@ -144,12 +144,11 @@ describe('SWR fetcher integration', () => {
     expect(backend.calls.length).toEqual(1);
   });
 
-  it('uses the latest arg of the hook when a revalidation happens, even if the key did not change', async () => {
+  it('sends the request stored in the key, and a changed request option is a new key', async () => {
     const backend = createFakeBackend();
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
-    // `timeout` is not part of the key (see the fake backend's argKey)
     const { result, rerender } = renderHook(
       ({ timeout }: { timeout: number }) => instance.useData('Get', { id: 1, timeout }),
       { wrapper, initialProps: { timeout: 1 } }
@@ -160,11 +159,11 @@ describe('SWR fetcher integration', () => {
     });
     expect(backend.calls[0].arg).toEqual({ id: 1, timeout: 1 });
 
-    // same key, new arg: the next revalidation must use it
+    // keys are lossless, so another `timeout` is another request
     rerender({ timeout: 2 });
-    await act(() => result.current.mutate());
-
-    expect(backend.calls.length).toEqual(2);
+    await waitFor(() => {
+      expect(backend.calls.length).toEqual(2);
+    });
     expect(backend.calls[1].arg).toEqual({ id: 1, timeout: 2 });
   });
 

@@ -135,9 +135,6 @@ dist
 coverage/
 .nyc_output/
 
-# local pnpm store (created when the global store is not writable)
-.pnpm-store/
-
 # turborepo
 .turbo/
 
