@@ -69,8 +69,8 @@ describe('TayoriProvider', () => {
     expect(isTayoriKey(key)).toEqual(true);
     expect(isTayoriKey(thunk)).toEqual(true);
     expect(isTayoriKey(foreign)).toEqual(true);
-    expect((key as NonNullable<typeof key>)[kTayoriKey]).toEqual({ backend: 'one' });
-    expect((foreign as NonNullable<typeof foreign>)[kTayoriKey]).toEqual({ backend: 'two' });
+    expect((key as NonNullable<typeof key>)[kTayoriKey]).toEqual('one');
+    expect((foreign as NonNullable<typeof foreign>)[kTayoriKey]).toEqual('two');
 
     expect(isTayoriKey([client, 'Get', { id: 1 }, undefined])).toEqual(false);
     expect(isTayoriKey(null)).toEqual(false);

@@ -15,8 +15,8 @@ import useSWR, { SWRConfig, useSWRConfig, preload as swrPreload } from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import useSWRInfinite from 'swr/infinite';
 
-import type { BrandedTayoriKey, TayoriInstanceToken } from './key';
-import { brand, buildKey, buildKeyOrThrow, getKeyArg, getKeyError, withKeyArg } from './key';
+import type { BrandedTayoriKey } from './key';
+import { brand } from './key';
 import type {
   ArgOf,
   DataOf,
@@ -26,6 +26,7 @@ import type {
   SWRInfiniteConfigurationWithOptionalFallback,
   TayoriBackend,
   TayoriInfiniteKeyLoader,
+  TayoriKey,
   TayoriProviderProps,
   TayoriTypes,
   UseMutationOptions
@@ -34,10 +35,9 @@ import type {
 export type {
   BrandedTayoriKey,
   BrandedTayoriKeyLoader,
-  TayoriInstanceToken,
   TayoriKeyBrand
 } from './key';
-export { isTayoriKey, kTayoriArg, kTayoriKey, kTayoriKeyError } from './key';
+export { isTayoriKey, kTayoriKey } from './key';
 export type {
   Apply,
   ArgOf,
@@ -60,24 +60,6 @@ export type {
 export { mutateWithTags as unstable_mutateWithTags, useMutateWithTags as unstable_useMutateWithTags } from './mutate-with-tags';
 
 /**
- * Resolve the argument of a hook. Like an SWR key: a falsy value pauses the request, a function is
- * called and pauses the request when it throws or returns a falsy value, anything else is the arg.
- */
-function resolveArg<Arg>(arg: Arg | Falsy | (() => Arg | Falsy)): Arg | null {
-  if (!arg) return null;
-  if (typeof arg === 'function') {
-    try {
-      const resolved = (arg as () => Arg | Falsy)();
-      return resolved || null;
-    } catch {
-      // dependencies are not ready yet (SWR semantics for key functions)
-      return null;
-    }
-  }
-  return arg;
-}
-
-/**
  * Create the tayori hooks + provider for a backend. This is what `tayori` (Hey API) and
  * `tayori-connect` (ConnectRPC) call under the hood. Each call creates an isolated instance with
  * its own React context and its own key brand, so multiple instances (even of different backends)
@@ -86,6 +68,9 @@ function resolveArg<Arg>(arg: Arg | Falsy | (() => Arg | Falsy)): Arg | null {
  * Every hook passes its own SWR fetcher, a closure over the method and the hook's latest argument,
  * so no SWR middleware is involved: a global `SWRConfig.fetcher` never applies to tayori keys,
  * while user middlewares that wrap the fetcher keep working.
+ *
+ * A request that cannot be resolved into a key is "not ready yet" and pauses the hook, exactly like
+ * an SWR key function (or a Redux selector) that throws: see `resolveKey`.
  *
  * The hooks are generic over the method they receive and type the request / response through the
  * backend's `TayoriTypes` (see `ArgOf` / `DataOf`), so adapters only need to hand their backend to
@@ -100,8 +85,6 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
   type Key = BrandedTayoriKey<Client>;
   /** The request arg of a hook, as the facade types it, or something that pauses the request */
   type ArgInput<M> = ArgOf<T, M> | Falsy | (() => ArgOf<T, M> | Falsy);
-
-  const token: TayoriInstanceToken = { backend: backend.name };
 
   // ---------- Client Context and Provider ----------
   const ClientContext = createContext<Client | null>(null);
@@ -124,31 +107,49 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     );
   }
 
-  // ---------- Keys and Fetchers ----------
+  // ---------- Keys ----------
   /**
-   * Build the exact SWR key a hook of this instance would use for `method` + `arg`
-   * (`null` when the arg pauses the request).
+   * Build one SWR key: `[client, methodKey, argKey, cacheTags]`. This is THE key layout, shared by
+   * every hook (and `useInfinite`'s pages). Throws when `backend.argKey` does.
    */
-  function getKey<M extends Method>(client: Client, method: M, arg: ArgInput<M>): Key | null {
-    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
-    return resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, backend.methodKey(method), resolvedArg);
+  function buildKey(client: Client, methodKey: unknown, method: Method, arg: Arg): Key {
+    const [argKey, cacheTags] = backend.argKey(method, arg);
+    return brand<TayoriKey<Client>>([client, methodKey, argKey, cacheTags], backend.name);
   }
 
   /**
-   * Run the request behind a key with the hook's latest arg. The key itself is only consulted for
-   * errors captured while it was built.
+   * Resolve a hook's request into its SWR key, with the same verdict as an SWR key function (or a
+   * Redux selector): a falsy request, a request function that returns a falsy value or throws, and a
+   * request the backend cannot build a key for all mean "not ready yet" and pause the request.
+   *
+   * `input` is whatever the hook received (typed by the hook's own signature).
    */
-  async function callForKey(key: Key, client: Client, method: Method, arg: Arg | undefined): Promise<Data> {
-    const keyError = getKeyError(key);
-    if (keyError.hasError) {
-      // building the key failed (e.g. backend.argKey could not serialize the request)
-      throw keyError.error as Error;
+  function resolveKey(client: Client, methodKey: unknown, method: Method, input: unknown): Key | null {
+    try {
+      const arg = (typeof input === 'function' ? (input as () => unknown)() : input) as Arg | Falsy;
+      return arg ? buildKey(client, methodKey, method, arg) : null;
+    } catch {
+      return null;
     }
-    return backend.call(
-      client,
-      method,
-      nullthrow(arg, `[${backend.name}] the request behind this SWR key is unknown, keys must be created by tayori hooks`)
-    );
+  }
+
+  /**
+   * The SWR fetcher of a hook: it sends the request stored in the key (slot 2). Keys are lossless,
+   * `backend.argKey` only normalizes the request, so the key is the request, like in tayori 0.3.
+   * `useSWR` hands its fetcher the first key instance of a hash, which hashes the same and so
+   * describes the same request as the latest one; `useSWRInfinite` builds every page key right
+   * before fetching it.
+   */
+  function fetcherFor<D>(client: Client, method: Method): BareFetcher<D> {
+    return (key: Key) => backend.call(client, method, key[2]) as Promise<D>;
+  }
+
+  /**
+   * Build the exact SWR key a hook of this instance would use for `method` + `arg`
+   * (`null` when the request is not ready).
+   */
+  function getKey<M extends Method>(client: Client, method: M, arg: ArgInput<M>): Key | null {
+    return resolveKey(client, backend.methodKey(method), method, arg);
   }
 
   // ---------- useData / useDataImmutable ----------
@@ -161,15 +162,10 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
   ): SWRResponse<DataOf<T, M>, unknown, SWROptions> {
     type D = DataOf<T, M>;
     const client = useClient();
-    const methodKey = backend.methodKey(method);
-    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
-    const key = resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, methodKey, resolvedArg);
+    const key = resolveKey(client, backend.methodKey(method), method, arg);
     // A per-hook `fetcher` in the SWR config is honoured (handy for tests / stories), a global
     // `SWRConfig.fetcher` is not, since SWR only falls back to it when no fetcher is passed.
-    // The fetcher closes over this render's arg and SWR refreshes it every render, so revalidations
-    // always send the latest arg (e.g. rotated headers).
-    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher
-      ?? ((swrKey: Key) => callForKey(swrKey, client, method, resolvedArg ?? undefined)) as BareFetcher<D>;
+    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher ?? fetcherFor<D>(client, method);
     // This non-null assertion is only to make the overloaded types happy.
     // In the runtime useSWR accepts config as undefined as usual
     return useSWR(key as SWRKey, fetcher, config!);
@@ -182,11 +178,8 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
   ): SWRResponse<DataOf<T, M>, unknown, SWROptions> {
     type D = DataOf<T, M>;
     const client = useClient();
-    const methodKey = backend.methodKey(method);
-    const resolvedArg = resolveArg(arg as Arg | Falsy | (() => Arg | Falsy));
-    const key = resolvedArg === null ? null : buildKeyOrThrow(token, backend, client, method, methodKey, resolvedArg);
-    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher
-      ?? ((swrKey: Key) => callForKey(swrKey, client, method, resolvedArg ?? undefined)) as BareFetcher<D>;
+    const key = resolveKey(client, backend.methodKey(method), method, arg);
+    const fetcher = (config as SWRConfiguration<D> | undefined)?.fetcher ?? fetcherFor<D>(client, method);
     return useSWRImmutable(key as SWRKey, fetcher, config!);
   }
 
@@ -200,26 +193,18 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     const client = useClient();
     const methodKey = backend.methodKey(method);
 
-    // SWR calls the loader lazily (page n needs page n - 1's data) and hands the fetcher only the
-    // page key, so the arg behind every page key rides on the key array itself. SWR-infinite
-    // rebuilds every page key right before fetching it, so the fetcher always sees the latest arg.
-    // Errors thrown while building a page key stay captured in the key and surface through SWR's
-    // `error` via the fetcher, since there is no render to throw from here.
-    //
-    // Following SWR's semantics, a loader that throws or returns a falsy value stops loading pages.
+    // The loader is passed to SWR as is, so SWR's own semantics apply: a falsy result stops loading
+    // pages, and a throw (from the loader or while building the key) pauses the hook on the first
+    // page but becomes the hook's `error` on later pages.
     const getSwrKey = brand(
       (pageIndex: number, previousPageData: D | null): Key | null => {
-        const result = getArg(pageIndex, previousPageData);
-        if (!result) {
-          return null;
-        }
-        return withKeyArg(buildKey(token, backend, client, method, methodKey, result), result);
+        const pageArg = getArg(pageIndex, previousPageData);
+        return pageArg ? buildKey(client, methodKey, method, pageArg) : null;
       },
-      token
+      backend.name
     );
 
-    const fetcher = (config as SWRInfiniteConfiguration<D> | undefined)?.fetcher
-      ?? ((swrKey: Key) => callForKey(swrKey, client, method, getKeyArg<Arg>(swrKey))) as BareFetcher<D>;
+    const fetcher = (config as SWRInfiniteConfiguration<D> | undefined)?.fetcher ?? fetcherFor<D>(client, method);
     return useSWRInfinite(getSwrKey as SWRInfiniteKeyLoader<D>, fetcher, config);
   }
 
@@ -310,57 +295,53 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
           // But if it's reset after the mutation, we don't broadcast any state change
           if (latestMutationTicketRef.current === mutationTicket) {
             const shouldPopulateCache = triggerOptions?.populateCache ?? populateCacheFromHook;
-            if (shouldPopulateCache) {
-              // buildKey builds [client, methodKey, argKey, cacheTags] —
-              // the exact same key useData/useDataImmutable would use for this arg.
+            // resolveKey builds the exact same key useData/useDataImmutable would use for this arg.
+            // A request that cannot be keyed has no useData slot to fill.
+            const cacheKey = shouldPopulateCache ? resolveKey(client, methodKey, method, mutationArg) : null;
+            if (cacheKey) {
               // revalidate:false writes the data without triggering a re-fetch.
-              const cacheKey = buildKey(token, backend, client, method, methodKey, arg);
+              swrMutate<D>(
+                cacheKey,
+                resultData,
+                {
+                  // no matter if we pass the second argument as T, or Promise<T>, or (() => T | Promise<T>), SWR will
+                  // always await it internally:
+                  // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L167
+                  //
+                  // In order for our cache to be written into store immediately, we pass our resultData
+                  // as optimisticData to ensure the cache is populated immediately
+                  //
+                  // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L149
+                  optimisticData: resultData,
 
-              // If the key could not be built there is no useData slot to fill
-              if (!getKeyError(cacheKey).hasError) {
-                swrMutate<D>(
-                  cacheKey,
-                  resultData,
-                  {
-                    // no matter if we pass the second argument as T, or Promise<T>, or (() => T | Promise<T>), SWR will
-                    // always await it internally:
-                    // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L167
-                    //
-                    // In order for our cache to be written into store immediately, we pass our resultData
-                    // as optimisticData to ensure the cache is populated immediately
-                    //
-                    // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L149
-                    optimisticData: resultData,
+                  // By default, SWR will always re-fetch after mutation, even with optimisticData is provided,
+                  // that is to update the cache with the latest data from the server.
+                  //
+                  // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L104
+                  //
+                  // However, SWR is trying to support where POST/PUT/PATCH returns the updated data, in that case, SWR expects
+                  // with populateCache as a function (re-construct POST/PUT/PATCH result into what GET request would return),
+                  // and SWR will just skip re-fetching and directly write tranfomed mutation result into cache.
+                  //
+                  // In our case, we also want SWR to skip re-fetching, as we are restricting populateCache to only be for
+                  // fetch on demand within effect/event handler.
+                  //
+                  // So we set this option to false, with populateCache as true (boolean), SWR will write second argument
+                  // (in our case, resultData) into cache without re-fetching
+                  //
+                  // We may still face two re-render (one with optimisticData, and one with resultData skipping re-fetch),
+                  // but the both data are identical, so final DOM will not change
+                  revalidate: false,
 
-                    // By default, SWR will always re-fetch after mutation, even with optimisticData is provided,
-                    // that is to update the cache with the latest data from the server.
-                    //
-                    // https://github.com/vercel/swr/blob/46f3954a35c39771ba3dcc00af774e4002062418/src/_internal/utils/mutate.ts#L104
-                    //
-                    // However, SWR is trying to support where POST/PUT/PATCH returns the updated data, in that case, SWR expects
-                    // with populateCache as a function (re-construct POST/PUT/PATCH result into what GET request would return),
-                    // and SWR will just skip re-fetching and directly write tranfomed mutation result into cache.
-                    //
-                    // In our case, we also want SWR to skip re-fetching, as we are restricting populateCache to only be for
-                    // fetch on demand within effect/event handler.
-                    //
-                    // So we set this option to false, with populateCache as true (boolean), SWR will write second argument
-                    // (in our case, resultData) into cache without re-fetching
-                    //
-                    // We may still face two re-render (one with optimisticData, and one with resultData skipping re-fetch),
-                    // but the both data are identical, so final DOM will not change
-                    revalidate: false,
+                  // Ensure our cache is written. This is especially important when revalidation is set to false
+                  populateCache: true
 
-                    // Ensure our cache is written. This is especially important when revalidation is set to false
-                    populateCache: true
-
-                    // we don't pass rollbackOnError here, because:
-                    //
-                    // 1. our resultData is already resolved
-                    // 2. if we have faced any error during trigger, we would not have reach here in the first place
-                  }
-                );
-              }
+                  // we don't pass rollbackOnError here, because:
+                  //
+                  // 1. our resultData is already resolved
+                  // 2. if we have faced any error during trigger, we would not have reach here in the first place
+                }
+              );
             }
 
             startTransition(() => {
@@ -427,10 +408,9 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     const client = useClient();
 
     return useCallback(<M extends Method>(method: M, preloadArg: ArgOf<T, M>) => {
-      const arg = preloadArg as Arg;
-      if (!arg) return;
-      const key = buildKeyOrThrow(token, backend, client, method, backend.methodKey(method), arg);
-      swrPreload(key as SWRKey, ((swrKey: Key) => callForKey(swrKey, client, method, arg)) as BareFetcher<Data>);
+      const key = resolveKey(client, backend.methodKey(method), method, preloadArg);
+      if (!key) return;
+      swrPreload(key as SWRKey, fetcherFor<Data>(client, method));
     }, [client]);
   }
 

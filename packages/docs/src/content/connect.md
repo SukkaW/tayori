@@ -122,10 +122,6 @@ export function DataFetchingProvider({ children }: React.PropsWithChildren) {
 
 By creating the transport within React through `<TayoriProvider />`, you get access to React context and hooks within your interceptors, which provides great flexibility for handling auth and other dynamic configurations.
 
-> **Request messages containing `google.protobuf.Any`**
->
-> tayori-connect serializes the request message to canonical proto3 JSON to build the SWR key. `google.protobuf.Any` fields need a type registry for that, so if any of your request messages contain one, pass a protobuf-es `Registry` to the factory: `tayoriConnect({ registry: createRegistry(MyMessageSchema, ...) })` (`createRegistry` comes from `@bufbuild/protobuf`).
-
 Wrap your app with the `DataFetchingProvider` you just created. You don't have to wrap your entire app with it, just make sure all your components that are fetching data are wrapped.
 
 ```tsx
@@ -165,7 +161,7 @@ This is the very fundamental API of tayori-connect. It mirrors how you would cal
 
 This is the exact same shape as Hey API mode, `useData(sdkFn, requestOptions, swrOptions)`: the second argument always describes the request, the third argument always configures SWR. Nothing moves around when you switch between the two adapters, or use both in one app.
 
-The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', { message, headers? }, cacheTags]`, where `message` is serialized to canonical proto3 JSON and `headers` are only included when the request has any (see "Request Options and SWR Options" below). Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ message: { pageSize: 20 } }` and `{ message: { pageSize: 20, pageToken: '' } }` share the same cache entry.
+The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`: the request object itself (without `cacheTags`), with `message` created by protobuf-es (`create()`, which fills in default values) and `headers` turned into a plain object with lower-cased names (see "Request Options and SWR Options" below). Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ message: { pageSize: 20 } }` and `{ message: { pageSize: 20, pageToken: '' } }` share the same cache entry.
 
 We recommend you not to use `useData` directly in your application, instead wrap `useData` with your own custom hooks for better reusability, and consistent request/SWR options across your app.
 
@@ -275,21 +271,23 @@ When the function throws an error (e.g., when `list` hasn't loaded yet and is `u
 The second argument of `useData` describes the request. Next to `message`, it takes Connect's per-call options and tayori's own `cacheTags`. The third argument takes [SWR options](https://swr.vercel.app/docs/api#options), and nothing else:
 
 ```tsx
+// The whole request is the SWR key: callbacks and context values compare by identity, so create
+// them once (or memoize them) instead of inline, see "Which request options are part of the SWR key?"
+const contextValues = useMemo(() => createContextValues().set(kTenant, tenant), [tenant]);
+const onHeader = useCallback((headers: Headers) => {
+  // response headers
+}, []);
+
 useData(
   ElizaService.method.say,
   {
     // the request message
     message: { sentence: 'Hello' },
-    // Connect call options, forwarded to the transport as-is
-    headers: { 'x-request-id': requestId }, // [!code highlight]
+    // Connect call options, forwarded to the transport
+    headers: { 'x-api-version': '2' }, // [!code highlight]
     timeoutMs: 5000, // [!code highlight]
-    contextValues: createContextValues().set(kTenant, tenant),
-    onHeader(headers) {
-      // response headers
-    },
-    onTrailer(trailers) {
-      // response trailers
-    },
+    contextValues,
+    onHeader,
     // tayori options, see "Cache Tags" below
     cacheTags: ['#eliza']
   },
@@ -311,7 +309,15 @@ The request accepts the `headers`, `timeoutMs`, `contextValues`, `onHeader` and 
 
 > **Which request options are part of the SWR key?**
 >
-> The transport, the method, `message`, `headers` and `cacheTags` identify a request, exactly like in Hey API mode where `headers` live inside the request options: two hooks with the same method and `message` but different `headers` (say, another `Accept-Language`) get their own cache entries. Header names are case-insensitive and their order doesn't matter. The other call options (`timeoutMs`, `contextValues`, `onHeader`, `onTrailer`) don't change the response, so they are not part of the key: hooks that only differ in them share one cache entry and one in-flight request, and the options of the hook that started the request are used. A hook always sends its latest request, so a changed `timeoutMs` applies to the next revalidation. Avoid rotating per-request tokens through `headers` (every new token is a new cache entry), put auth into a transport interceptor instead.
+> All of them. The SWR key is the transport, the method and the whole request (`message`, `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`, `cacheTags`), exactly like in Hey API mode where the whole request options are the key, and a hook sends exactly the request of its key. Two hooks that differ in any of them, say another `Accept-Language` header or another `timeoutMs`, get their own cache entries.
+>
+> tayori-connect normalizes what it can, so equivalent requests share one entry: `message` goes through protobuf-es' `create()` (field order and default values don't matter), and `headers` become a plain object with lower-cased names (a plain object or a `Headers` instance, in any case). Other plain data compares by value. Everything else compares by identity, so when it is created during render, every render is a new key and thus a new request:
+>
+> - `bytes` fields (`Uint8Array`, including the `value` of `anyPack()` results)
+> - `onHeader` / `onTrailer` callbacks
+> - `contextValues` (`createContextValues()`)
+>
+> Create them outside of your component, or memoize them with `useMemo` / `useCallback`. Avoid per-request values in `headers` too (request ids, rotating tokens): every new value is a new cache entry, put them into a transport interceptor instead.
 >
 > If something changes the response of your server, it belongs into `message`. Anything that should apply to every request (auth, tracing, locale) belongs into a transport interceptor.
 
@@ -529,7 +535,7 @@ const { trigger, isMutating } = useMutation(PlanetService.method.getPlanet, { po
 trigger({ message: { id: 'earth' } }, { populateCache: true });
 ```
 
-Since `headers` and `cacheTags` are part of the SWR key, pass the same ones in the `trigger` request as in the `useData` hook you are populating, e.g. `trigger({ message: { id: 'earth' }, cacheTags: ['#planets'] })` for a hook tagged with `#planets`.
+Since the whole request (except `signal`) is the SWR key, pass the same request to `trigger` as to the `useData` hook you are populating, `cacheTags` and call options included, e.g. `trigger({ message: { id: 'earth' }, cacheTags: ['#planets'] })` for a hook tagged with `#planets`.
 
 ## Pagination and Infinite Loading
 
@@ -673,7 +679,7 @@ function App() {
 }
 ```
 
-`preload(method, request)` takes the same request object as `useData`'s second argument (`message`, `headers`, `cacheTags`, ...), but no SWR options. Make sure it matches the `useData` call you are preloading for, since `message`, `headers` and `cacheTags` are part of the SWR key.
+`preload(method, request)` takes the same request object as `useData`'s second argument (`message`, `headers`, `cacheTags`, ...), but no SWR options. Make sure it matches the `useData` call you are preloading for, since the whole request is the SWR key.
 
 > **Why can't I preload outside of React like SWR?**
 >
@@ -827,14 +833,14 @@ Both packages are thin adapters on top of the same core (`tayori-core`) and shar
 
 | | Hey API mode (`tayori`) | ConnectRPC mode (`tayori-connect`) |
 | --- | --- | --- |
-| Factory | `tayori<Options, RequestResult>()` | `tayoriConnect({ registry? })` |
+| Factory | `tayori<Options, RequestResult>()` | `tayoriConnect()` |
 | Provider prop | `initClient={() => createClient(...)}` | `initTransport={() => createConnectTransport(...)}` |
 | First hook argument | generated SDK function, e.g. `getAllPlanets` | unary method descriptor, e.g. `ElizaService.method.say` |
 | Second hook argument (the request) | Hey API request options, e.g. `{ path, query, body, headers }` | the request message under `message` (Connect's own name for it, `UnaryRequest.message`) next to Connect's per-call options, e.g. `{ message: { sentence: 'Hello' }, headers }` |
 | Third hook argument | SWR options | SWR options |
 | `data` | the `data` field of the SDK result | the response message, e.g. `SayResponse` |
 | `cacheTags` | inside the request | inside the request |
-| Per-call `headers`, timeouts... | inside the request (all part of the SWR key) | inside the request (`headers` are part of the SWR key, `timeoutMs` / `contextValues` / `onHeader` / `onTrailer` are not) |
+| Per-call `headers`, timeouts... | inside the request (all part of the SWR key) | inside the request (all part of the SWR key) |
 | `trigger`'s request | the same Hey API request options | the same request object as `useData`, plus an optional `signal` |
 | Error type | whatever your Hey API client throws (e.g. `HTTPError` from ky) | `ConnectError` |
 | Escape hatch | call the SDK function directly | `useTransport()` + `createClient()`, e.g. for streaming |

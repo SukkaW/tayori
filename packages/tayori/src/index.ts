@@ -221,7 +221,7 @@ export function tayori<
  * `(pageIndex, previousPageData) => key` loader, so check `Array.isArray(key)` before indexing into it.
  */
 export function isInternalSWRKey(key: unknown): key is InternalSWRKey | BrandedTayoriKeyLoader<HeyAPIClientLike, GeneralSdkMethod> {
-  return isTayoriKey(key) && key[kTayoriKey].backend === HEY_API_BACKEND_NAME;
+  return isTayoriKey(key) && key[kTayoriKey] === HEY_API_BACKEND_NAME;
 }
 
 export { unstable_mutateWithTags, unstable_useMutateWithTags } from 'tayori-core';

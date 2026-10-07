@@ -5,8 +5,7 @@ export interface FakeClient {
 }
 
 /**
- * The request bag of the fake backend: `id` identifies the request (part of the key), `timeout`
- * does not (like Connect's `timeoutMs`), `cacheTags` are tayori's.
+ * The request bag of the fake backend: `id` and `timeout` are request options, `cacheTags` are tayori's.
  */
 export interface FakeArg {
   id: number,
@@ -17,7 +16,7 @@ export interface FakeArg {
 export interface FakeCall {
   client: FakeClient,
   method: string,
-  /** the arg exactly as the hook passed it (cacheTags included) */
+  /** the request as sent: the one stored in the key for hooks (without cacheTags), the arg as is for useMutation */
   arg: FakeArg
 }
 
@@ -40,8 +39,8 @@ export function createFakeBackend(name = 'fake'): FakeBackend {
     calls: [],
     respond: (client, method, arg) => Promise.resolve(`${client.name}:${method}:${arg.id}`),
     methodKey: (method) => method,
-    // `timeout` is a call option: it never changes the response, so it stays out of the key
-    argKey(_method, { cacheTags, timeout: _timeout, ...rest }) {
+    // keys are lossless: the whole request, without tayori's cacheTags
+    argKey(_method, { cacheTags, ...rest }) {
       return [rest, cacheTags];
     },
     call(client, method, arg) {

@@ -1,18 +1,24 @@
-import type { DescMessage, DescMethod, DescMethodUnary, JsonValue, MessageInitShape, MessageShape, Registry } from '@bufbuild/protobuf';
-import { create, toJson } from '@bufbuild/protobuf';
+import type { DescMessage, DescMethod, DescMethodUnary, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
+import { create } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
 import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /**
  * Connect per-call options that tayori-connect forwards to the transport: exactly what you would
- * pass as the second argument of a Connect client method. `headers` are part of the SWR key (a
- * request with different headers may get a different response), the others are not.
+ * pass as the second argument of a Connect client method. Like the message, they are part of the
+ * SWR key, so keep them stable across renders (see `TayoriConnectRequest`).
  */
 export type TayoriConnectCallOptions = Pick<CallOptions, 'headers' | 'timeoutMs' | 'contextValues' | 'onHeader' | 'onTrailer'>;
 
 /**
  * Describes one request, the way Hey API's request options describe a request in `tayori`:
  * the request message plus Connect's per-call options plus tayori's `cacheTags`.
+ *
+ * The whole request is the SWR key, so it must stay the same across renders. Messages, plain
+ * values, plain header objects and `new Headers()` are normalized into stable keys, but these are
+ * compared by identity, and a new one every render means a new request every render:
+ * `Uint8Array`s (`bytes` fields, including `anyPack()` results), `onHeader` / `onTrailer` callbacks
+ * and `contextValues`. Create them outside of render or memoize them.
  */
 export interface TayoriConnectRequest<I extends DescMessage = DescMessage> extends TayoriConnectCallOptions {
   /**
@@ -75,15 +81,6 @@ export type TayoriConnectBackend = TayoriBackend<TayoriConnectTypes, Transport>;
 export type TayoriConnectMethodKey = `${string}/${string}`;
 
 /**
- * Slot 2 of a tayori-connect SWR key: the request message as canonical proto3 JSON, plus the
- * headers (names lower-cased) when the request has any.
- */
-export interface TayoriConnectArgKey {
-  message: JsonValue,
-  headers?: Record<string, string>
-}
-
-/**
  * Slot 1 of the key. Also validates that the method is unary: streaming methods are not supported (yet).
  */
 export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
@@ -95,15 +92,17 @@ export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
 }
 
 /**
- * The `headers` of slot 2: the request headers as a plain record, or `undefined` when there are none.
+ * The request headers as a plain record, or `undefined` when there are none. This is what the key
+ * holds and what is sent, so it must stay equivalent to the input.
  *
  * Caveats, since the result feeds SWR's key hash:
- * - Names are lower-cased here. Spec-compliant `Headers` (browsers, Node.js) already lower-case names
- *   when iterated, but not every implementation does (happy-dom keeps the original case), and
- *   `{ 'X-Foo': 'a' }` must hash the same as `{ 'x-foo': 'a' }`.
+ * - A `Headers` instance hashes by identity (a new one every render would be a new key every
+ *   render), a plain record hashes by content.
+ * - Names are lower-cased here (header names are case-insensitive). Spec-compliant `Headers`
+ *   (browsers, Node.js) already lower-case names when iterated, but not every implementation does
+ *   (happy-dom keeps the original case), and `{ 'X-Foo': 'a' }` must hash the same as `{ 'x-foo': 'a' }`.
  * - Names are not sorted: SWR's stable-hash sorts plain-object keys, so insertion order never matters.
- * - `undefined` rather than `{}` without headers: stable-hash skips absent properties but hashes `{}`,
- *   and slot 2 stays `{ message }` for requests without headers, matching the documented key layout.
+ * - `undefined` rather than `{}` without headers: stable-hash skips absent properties but hashes `{}`.
  * - `Headers` joins repeated names (`a, b`), the same value the transport sends.
  * - Values are part of the key, so a header that changes on every request (request ids, rotating
  *   tokens) creates a new cache entry each time. Set those in a transport interceptor instead.
@@ -118,31 +117,28 @@ function headersKey(init: HeadersInit | undefined): Record<string, string> | und
   return key;
 }
 
-export interface TayoriConnectBackendOptions {
-  /**
-   * A protobuf-es `Registry` used when serializing the request message for the SWR key.
-   * Only needed if your request messages contain `google.protobuf.Any` fields.
-   */
-  registry?: Registry
-}
-
-export function createConnectBackend({ registry }: TayoriConnectBackendOptions = {}): TayoriConnectBackend {
-  const jsonOptions = registry ? { registry } : undefined;
-
+export function createConnectBackend(): TayoriConnectBackend {
   return {
     name: 'tayori-connect',
     methodKey: getMethodKey,
-    // Canonical proto3 JSON: unset / default fields are omitted, 64-bit integers become strings,
-    // bytes become base64, well-known types use their JSON mapping. Equivalent inits yield equal keys.
-    argKey(method, request) {
-      const argKey: TayoriConnectArgKey = {
-        message: toJson(method.input, create(method.input, request.message), jsonOptions)
+    // Keys are lossless (the hooks send exactly what is in the key), only normalized into an
+    // equivalent request that hashes more stably across renders:
+    // - the message goes through `create()`, which the transport would do anyway: defaults are
+    //   filled in, so `{ pageSize: 20 }` and `{ pageSize: 20, pageToken: '' }` share one key, and an
+    //   already created message is returned as is
+    // - headers become a plain record with lower-cased names (see `headersKey`)
+    // - the abort signal is left out: it only exists for `useMutation().trigger()`, which sends its
+    //   request as is, and must not keep a `populateCache` key from matching `useData`'s
+    argKey(method, { cacheTags, signal: _signal, headers, ...request }) {
+      const argKey: TayoriConnectRequest = {
+        ...request,
+        message: create(method.input, request.message)
       };
-      const headers = headersKey(request.headers);
-      if (headers) {
-        argKey.headers = headers;
+      const normalizedHeaders = headersKey(headers);
+      if (normalizedHeaders) {
+        argKey.headers = normalizedHeaders;
       }
-      return [argKey, request.cacheTags];
+      return [argKey, cacheTags];
     },
     // Same as what Connect's own `createClient()` does for unary methods
     async call(transport, method, request) {
