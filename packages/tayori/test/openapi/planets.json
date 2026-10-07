@@ -1,0 +1,83 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "tayori test API", "version": "1.0.0" },
+  "paths": {
+    "/planets": {
+      "get": {
+        "operationId": "listPlanets",
+        "parameters": [
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of planets. The body itself has a `data` field, like many paginated APIs.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanetPage" } } }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPlanet",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewPlanet" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "The created planet",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Planet" } } }
+          }
+        }
+      }
+    },
+    "/planets/{planetId}": {
+      "get": {
+        "operationId": "getPlanet",
+        "parameters": [
+          { "name": "planetId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A planet",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Planet" } } }
+          },
+          "404": {
+            "description": "Not found",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Planet": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": { "id": { "type": "integer" }, "name": { "type": "string" } }
+      },
+      "NewPlanet": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      },
+      "PlanetPage": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Planet" } },
+          "meta": {
+            "type": "object",
+            "required": ["total"],
+            "properties": { "total": { "type": "integer" } }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } }
+      }
+    }
+  }
+}

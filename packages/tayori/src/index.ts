@@ -55,14 +55,16 @@ export interface TayoriProviderProps extends CoreTayoriProviderProps<HeyAPIClien
 export function tayori<
   /**
    * The `Options` type of your generated SDK: what every SDK function accepts (and what tayori spreads
-   * `client`, `throwOnError` and `responseStyle` into).
+   * `client`, `throwOnError` and `responseStyle` into). Types tayori's internal SDK call only.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the default must accept every generated SDK
   SDKOptions extends GeneralSdkOptions = any,
   /**
-   * The `RequestResult` type of your generated client: what every SDK function resolves to. Hey API
-   * resolves it conditionally from `throwOnError` / `responseStyle` and it differs between client
-   * plugins and versions, so it cannot be inferred from an SDK function. tayori reads `.data` from it.
+   * The `RequestResult` type of your generated client, which tayori reads `.data` from internally.
+   *
+   * Both type arguments are optional: every hook infers its request options and its response type from
+   * the SDK function it receives, in both of Hey API's response styles (`fields` and `data`), so the
+   * hooks are typed the same with or without them. They are kept for compatibility.
    */
   SDKRequestResult extends GeneralSdkRequestResult = DefaultSdkRequestResult
 >() {
