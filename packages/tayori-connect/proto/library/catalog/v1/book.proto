@@ -1,0 +1,91 @@
+// Test-only schema for tayori-connect: a small "library" API shaped like a real multi-service
+// application (`<area>/<domain>/v1` layout, CRUD with page tokens, cross-file imports, streaming).
+// Regenerate with `pnpm --filter tayori-connect generate`.
+syntax = "proto3";
+
+package library.catalog.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Reads are open to every member, writes need the librarian role.
+service BookService {
+  rpc GetBook(GetBookRequest) returns (GetBookResponse) {}
+  rpc ListBooks(ListBooksRequest) returns (ListBooksResponse) {}
+  rpc CreateBook(CreateBookRequest) returns (CreateBookResponse) {}
+  rpc UpdateBook(UpdateBookRequest) returns (UpdateBookResponse) {}
+  rpc DeleteBook(DeleteBookRequest) returns (DeleteBookResponse) {}
+}
+
+enum Genre {
+  GENRE_UNSPECIFIED = 0;
+  GENRE_FICTION = 1;
+  GENRE_SCIENCE = 2;
+  GENRE_HISTORY = 3;
+}
+
+message Book {
+  string id = 1;
+  string title = 2;
+  // Has presence: an unset subtitle and an empty one are different values.
+  optional string subtitle = 3;
+  repeated string authors = 4;
+  Genre genre = 5;
+  // 64-bit: a bigint in TypeScript.
+  int64 price_cents = 6;
+  google.protobuf.Timestamp published_at = 7;
+  map<string, string> labels = 8;
+  oneof cover {
+    string cover_url = 9;
+    bytes cover_image = 10;
+  }
+  string isbn = 11 [deprecated = true];
+}
+
+message GetBookRequest {
+  string id = 1;
+}
+
+message GetBookResponse {
+  Book book = 1;
+}
+
+message ListBooksRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  Genre genre = 3;
+  optional string title_contains = 4;
+  // Only books carrying all of these labels.
+  map<string, string> labels = 5;
+}
+
+message ListBooksResponse {
+  repeated Book books = 1;
+  string next_page_token = 2;
+  int64 total = 3;
+}
+
+message CreateBookRequest {
+  // `id` is assigned by the server.
+  Book book = 1;
+}
+
+message CreateBookResponse {
+  Book book = 1;
+}
+
+// A partial update: only the fields that are set are changed.
+message UpdateBookRequest {
+  string id = 1;
+  optional string title = 2;
+  optional int64 price_cents = 3;
+}
+
+message UpdateBookResponse {
+  Book book = 1;
+}
+
+message DeleteBookRequest {
+  string id = 1;
+}
+
+message DeleteBookResponse {}

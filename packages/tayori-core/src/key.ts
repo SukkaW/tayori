@@ -1,4 +1,4 @@
-import type { CacheTag, TayoriBackend, TayoriKey, TayoriSimpleTypes } from './types';
+import type { TayoriBackend, TayoriKey, TayoriSimpleTypes } from './types';
 
 /**
  * Brand attached (as a non-enumerable property) to every SWR key array and `useInfinite` key loader

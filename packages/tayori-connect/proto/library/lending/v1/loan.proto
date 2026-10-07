@@ -1,0 +1,65 @@
+// Test-only schema for tayori-connect, see library/catalog/v1/book.proto.
+syntax = "proto3";
+
+package library.lending.v1;
+
+import "google/protobuf/timestamp.proto";
+import "library/catalog/v1/book.proto";
+
+// Every call is scoped to the authenticated member (librarians see everyone's loans).
+service LoanService {
+  rpc ListLoans(ListLoansRequest) returns (ListLoansResponse) {}
+  rpc CheckOut(CheckOutRequest) returns (CheckOutResponse) {}
+  rpc ReturnBook(ReturnBookRequest) returns (ReturnBookResponse) {}
+  // Server streaming: tayori-connect hooks reject it, use `useTransport()` with a Connect client.
+  rpc WatchLoans(WatchLoansRequest) returns (stream WatchLoansResponse) {}
+}
+
+enum LoanStatus {
+  LOAN_STATUS_UNSPECIFIED = 0;
+  LOAN_STATUS_ACTIVE = 1;
+  LOAN_STATUS_RETURNED = 2;
+}
+
+message Loan {
+  string id = 1;
+  library.catalog.v1.Book book = 2;
+  string member_id = 3;
+  google.protobuf.Timestamp due_at = 4;
+  optional google.protobuf.Timestamp returned_at = 5;
+  LoanStatus status = 6;
+  int64 late_fee_cents = 7;
+}
+
+message ListLoansRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  LoanStatus status = 3;
+}
+
+message ListLoansResponse {
+  repeated Loan loans = 1;
+  string next_page_token = 2;
+}
+
+message CheckOutRequest {
+  string book_id = 1;
+}
+
+message CheckOutResponse {
+  Loan loan = 1;
+}
+
+message ReturnBookRequest {
+  string loan_id = 1;
+}
+
+message ReturnBookResponse {
+  Loan loan = 1;
+}
+
+message WatchLoansRequest {}
+
+message WatchLoansResponse {
+  Loan loan = 1;
+}
