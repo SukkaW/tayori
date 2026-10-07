@@ -11,7 +11,7 @@ const token: TayoriInstanceToken = { backend: 'test' };
 const plain = (key: unknown) => Array.from(key as Iterable<unknown>);
 const client = { name: 'client' };
 
-type Arg = { id: number, timeout?: number, cacheTags?: Array<`#${string}`> };
+interface Arg { id: number, timeout?: number, cacheTags?: Array<`#${string}`> }
 
 const backend: Pick<TayoriBackend<TayoriSimpleTypes<string, Arg, unknown>, typeof client>, 'argKey'> = {
   // `timeout` never changes the response, so it stays out of the key

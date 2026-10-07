@@ -16,7 +16,7 @@ export interface HeyAPIClientLike {
 }
 
 /** The `Options` type of a generated SDK, as far as tayori relies on it */
-export type GeneralSdkOptions = { client?: unknown };
+export interface GeneralSdkOptions { client?: unknown }
 /** What a generated SDK function returns, as far as tayori relies on it: the `RequestResult` type of the generated client */
 export type GeneralSdkRequestResult = Promise<any>;
 export type DefaultSdkRequestResult = Promise<{
