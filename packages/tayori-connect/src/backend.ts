@@ -1,7 +1,6 @@
 import type { DescMessage, DescMethod, DescMethodUnary, JsonValue, MessageInitShape, MessageShape, Registry } from '@bufbuild/protobuf';
 import { create, toJson } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
-import { headersToObject } from 'foxts/headers-to-object';
 import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /**
@@ -77,7 +76,7 @@ export type TayoriConnectMethodKey = `${string}/${string}`;
 
 /**
  * Slot 2 of a tayori-connect SWR key: the request message as canonical proto3 JSON, plus the
- * headers (names lower-cased and sorted) when the request has any.
+ * headers (names lower-cased) when the request has any.
  */
 export interface TayoriConnectArgKey {
   message: JsonValue,
@@ -91,6 +90,30 @@ export function getMethodKey(method: DescMethod): TayoriConnectMethodKey {
   const key: TayoriConnectMethodKey = `${method.parent.typeName}/${method.name}`;
   if (method.methodKind !== 'unary') {
     throw new TypeError(`[tayori-connect] ${key} is a ${method.methodKind} method, only unary methods are supported for now`);
+  }
+  return key;
+}
+
+/**
+ * The `headers` of slot 2: the request headers as a plain record, or `undefined` when there are none.
+ *
+ * Caveats, since the result feeds SWR's key hash:
+ * - Names are lower-cased here. Spec-compliant `Headers` (browsers, Node.js) already lower-case names
+ *   when iterated, but not every implementation does (happy-dom keeps the original case), and
+ *   `{ 'X-Foo': 'a' }` must hash the same as `{ 'x-foo': 'a' }`.
+ * - Names are not sorted: SWR's stable-hash sorts plain-object keys, so insertion order never matters.
+ * - `undefined` rather than `{}` without headers: stable-hash skips absent properties but hashes `{}`,
+ *   and slot 2 stays `{ message }` for requests without headers, matching the documented key layout.
+ * - `Headers` joins repeated names (`a, b`), the same value the transport sends.
+ * - Values are part of the key, so a header that changes on every request (request ids, rotating
+ *   tokens) creates a new cache entry each time. Set those in a transport interceptor instead.
+ */
+function headersKey(init: HeadersInit | undefined): Record<string, string> | undefined {
+  if (init === undefined) return undefined;
+  let key: Record<string, string> | undefined;
+  for (const [name, value] of new Headers(init)) {
+    key ??= {};
+    key[name.toLowerCase()] = value;
   }
   return key;
 }
@@ -115,9 +138,10 @@ export function createConnectBackend({ registry }: TayoriConnectBackendOptions =
       const argKey: TayoriConnectArgKey = {
         message: toJson(method.input, create(method.input, request.message), jsonOptions)
       };
-      const headers = headersToObject(request.headers);
-      argKey.headers = headers;
-
+      const headers = headersKey(request.headers);
+      if (headers) {
+        argKey.headers = headers;
+      }
       return [argKey, request.cacheTags];
     },
     // Same as what Connect's own `createClient()` does for unary methods
