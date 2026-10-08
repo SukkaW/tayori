@@ -8,6 +8,7 @@ import { dedent as ts } from 'ts-dedent';
 import { DOCS } from '../lib/docs';
 import type { DocsSlug } from '../lib/docs';
 import { REPO_URL } from '../lib/site';
+import { BackendLink } from './backend-link';
 import { ArrowRightIcon, ConnectIcon, GitHubIcon, HeyAPIIcon, SWRIcon } from './icons';
 
 const styles = stylex.create({
@@ -339,15 +340,15 @@ export async function Hero() {
 
         {/* ── Actions ─────────────────────────────────────────── */}
         <div {...stylex.props(styles.actions)}>
-          <a href={DOCS['hey-api'].path} {...stylex.props(styles.button, styles.primaryButton)}>
+          <BackendLink slug="hey-api" {...stylex.props(styles.button, styles.primaryButton)}>
             Hey API docs
             <ArrowRightIcon />
-          </a>
+          </BackendLink>
 
-          <a href={DOCS.connect.path} {...stylex.props(styles.button, styles.primaryButton)}>
+          <BackendLink slug="connect" {...stylex.props(styles.button, styles.primaryButton)}>
             ConnectRPC docs
             <ArrowRightIcon />
-          </a>
+          </BackendLink>
 
           <a
             href={REPO_URL}

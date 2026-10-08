@@ -1,22 +1,17 @@
 /**
- * The registry of documentation pages. Plain data only (no markdown imports), so that light
- * consumers like the sitemap and the site header do not pull the whole markdown pipeline in.
+ * The registry of documentation backends. Plain data only (no markdown imports), so that light
+ * consumers do not pull the whole markdown pipeline in.
  */
 export type DocsSlug = 'hey-api' | 'connect';
 
 export interface DocsPage {
   slug: DocsSlug,
-  path: `/${DocsSlug}`,
   /** Short name of the mode, used in navigation */
   label: string,
-  /** Human readable page title, e.g. "Hey API mode" */
-  title: string,
-  /** The npm package that implements this mode */
+  /** The npm package of this mode */
   packageName: string,
-  /** One-liner shown as the lead of the page */
-  description: string,
-  /** Heading of this document inside llms-full.txt */
-  llmsHeading: string
+  /** When to read this documentation, for llms-full.txt */
+  llmsWhen: string
 }
 
 export const DOCS_SLUGS = ['hey-api', 'connect'] as const satisfies readonly DocsSlug[];
@@ -24,20 +19,14 @@ export const DOCS_SLUGS = ['hey-api', 'connect'] as const satisfies readonly Doc
 export const DOCS: Record<DocsSlug, DocsPage> = {
   'hey-api': {
     slug: 'hey-api',
-    path: '/hey-api',
     label: 'Hey API',
-    title: 'Hey API mode',
     packageName: 'tayori',
-    description: 'SWR-powered React data fetching hooks for the SDK that Hey API generates from your OpenAPI specification.',
-    llmsHeading: 'tayori — Hey API mode'
+    llmsWhen: 'the project calls an HTTP API through the SDK that Hey API (`@hey-api/openapi-ts`) generates from an OpenAPI specification'
   },
   connect: {
     slug: 'connect',
-    path: '/connect',
     label: 'ConnectRPC',
-    title: 'ConnectRPC mode',
     packageName: 'tayori-connect',
-    description: 'SWR-powered React data fetching hooks for ConnectRPC services, driven by the service descriptors that protobuf-es generates from your Protobuf schema.',
-    llmsHeading: 'tayori-connect — ConnectRPC mode'
+    llmsWhen: 'the project calls ConnectRPC services (`@connectrpc/connect` v2) with the service descriptors that `@bufbuild/protobuf` v2 generates from Protobuf schemas'
   }
 };

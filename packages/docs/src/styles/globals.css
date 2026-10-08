@@ -81,3 +81,27 @@
 .code-wrap pre.shiki.has-highlighted:hover .line:not(.highlighted) {
   opacity: 1;
 } */
+
+/* The padding of a tab card is the only space around its content (StyleX rules are more specific) */
+.backend-tab-panel > :first-child {
+  margin-top: 0 !important;
+}
+
+.backend-tab-panel > :last-child,
+.backend-tab-panel > :is(ul, ol):last-child > li:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* A tab card that holds nothing but code shows it edge to edge */
+.backend-tab-code .code-wrap {
+  margin: 0 !important;
+}
+
+.backend-tab-code .code-wrap + .code-wrap pre.shiki {
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.backend-tab-code .code-wrap pre.shiki {
+  border-radius: 0 !important;
+  border: 0 !important;
+}

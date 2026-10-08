@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 
 import { Hero } from '@/components/hero';
-import { BackendPicker } from '@/components/backend-picker';
+import { DocsSection } from '@/components/docs-section';
 import { Footer } from '@/components/footer';
-import { LegacyHashRedirect } from '@/components/legacy-hash-redirect';
 import { createPageMetadata, SITE_DESCRIPTION, SITE_TITLE } from '@/lib/site';
 
 export const metadata: Metadata = createPageMetadata({
@@ -15,9 +14,8 @@ export const metadata: Metadata = createPageMetadata({
 export default function Home() {
   return (
     <>
-      <LegacyHashRedirect />
       <Hero />
-      <BackendPicker />
+      <DocsSection />
       <Footer />
     </>
   );
