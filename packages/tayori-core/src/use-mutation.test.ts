@@ -246,7 +246,7 @@ describe('useMutation trigger stability and validation', () => {
     expect(result.current.reset).toExactlyEqual(result.current.reset);
   });
 
-  it('validates the method before anything is sent', async () => {
+  it('rejects an unsupported method at render, before anything is sent', () => {
     const backend = createFakeBackend();
     backend.methodKey = (method) => {
       if (method === 'Stream') throw new TypeError('only unary methods are supported');
@@ -255,9 +255,7 @@ describe('useMutation trigger stability and validation', () => {
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
 
-    const { result } = renderHook(() => instance.useMutation('Stream'), { wrapper });
-
-    await expect(result.current.trigger({ id: 1 })).toBeRejectedWith(TypeError, 'only unary methods are supported');
+    expect(() => renderHook(() => instance.useMutation('Stream'), { wrapper })).toThrow(TypeError, 'only unary methods are supported');
     expect(backend.calls).toEqual([]);
   });
 });

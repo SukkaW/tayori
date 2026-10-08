@@ -651,31 +651,6 @@ function MyComponent() {
 }
 ```
 
-### Server-Side Rendering with Default Data
-
-You may call Hey API generated SDK on the server directly within the Server Component to obtain the data, and pass that data to a Client Component as props:
-
-```tsx
-async function ServerComponent() {
-  // you maybe call the Hey API directly in Server Components
-  const prefetched = await getAllPlanets({});
-
-  return <ClientComponent prefetched={prefetched} />;
-}
-```
-
-Then in the Client Component, you can pass the prefetched data from props to `useData`'s `fallbackData` option to pre-fill the cache:
-
-```tsx
-'use client';
-
-function ClientComponent({ prefetched }) {
-  const { data } = useData(getAllPlanets, {}, { fallbackData: prefetched });
-}
-```
-
-With `fallbackData`, the `data` returned by `useData` will never be `undefined`, even on the server, so you get the initial UI within the rendered HTML.
-
 ### Real Time Client Side Data Fetching
 
 If you don't provide `fallbackData`, the initial `data` will be `undefined` and the initial `isLoading` will be `true` on the server. You can provide a loading UI for better user experience:

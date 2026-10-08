@@ -113,7 +113,7 @@ describe('useInfinite', () => {
 
     // Every page lives in the cache under the same key `useData` would build for it
     const { cache } = result.current.swr;
-    const cachedPage = (method: string, arg: FakeArg) => cache.get(unstable_serialize(instance.getKey(client, method, arg)))?.data;
+    const cachedPage = (method: string, arg: FakeArg) => cache.get(unstable_serialize([client, method, arg]))?.data;
 
     expect(cachedPage('List', { id: 1, timeout: 7 })).toEqual('c1:List:1');
     // keys are lossless, so another `timeout` (or none) is another request

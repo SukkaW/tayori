@@ -178,9 +178,7 @@ export function tayori<
      */
     TayoriProvider,
     /**
-     * Returns the Hey API client of the nearest `<TayoriProvider />`. The client is slot 0 of every
-     * SWR key (`[client, sdkMethod, sdkArg]`), so you need it to build a key by hand
-     * for `mutate()` or `SWRConfig`'s `fallback`.
+     * Returns the Hey API client of the nearest `<TayoriProvider />`.
      */
     useClient: core.useClient,
     /**

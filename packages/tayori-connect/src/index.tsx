@@ -1,10 +1,9 @@
 'use client';
 
 import type { Transport } from '@connectrpc/connect';
-import type { TayoriKey } from 'tayori-core';
 import { createTayori } from 'tayori-core';
 
-import type { TayoriConnectMethodKey, TayoriConnectRequest } from './backend';
+import type { TayoriConnectRequest } from './backend';
 import { createConnectBackend } from './backend';
 
 export type { Falsy, UseMutationOptions } from 'tayori-core';
@@ -24,11 +23,6 @@ export type {
  * created (`create()`) and the headers as a plain record with lower-cased names.
  */
 export type TayoriConnectArgKey = TayoriConnectRequest;
-
-/**
- * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", request]`
- */
-export type TayoriConnectKey = TayoriKey<Transport, TayoriConnectMethodKey, TayoriConnectArgKey>;
 
 export interface TayoriConnectProviderProps extends React.PropsWithChildren {
   /**
@@ -170,8 +164,7 @@ export function tayoriConnect() {
      */
     TayoriProvider,
     /**
-     * Returns the Connect `Transport` of the nearest `<TayoriProvider />`, e.g. to create a
-     * Connect `createClient()` for streaming methods that tayori-connect does not support yet.
+     * Returns the Connect `Transport` of the nearest `<TayoriProvider />`.
      */
     useTransport: core.useClient
   } as const;
