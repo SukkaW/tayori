@@ -40,18 +40,18 @@ describe('usePreload', () => {
     const { backend, instance, wrapper } = setup();
 
     const { result: preload } = renderHook(() => instance.usePreload(), { wrapper });
-    preload.current('Get', { id: 1, cacheTags: ['#tag'] });
+    preload.current('Get', { id: 1, timeout: 5 });
 
     const { result } = renderHook(() => ({
-      tagged: instance.useData('Get', { id: 1, cacheTags: ['#tag'] }),
-      untagged: instance.useData('Get', { id: 1 })
+      matching: instance.useData('Get', { id: 1, timeout: 5 }),
+      other: instance.useData('Get', { id: 1 })
     }), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.tagged.data).toEqual('preloader:Get:1');
+      expect(result.current.matching.data).toEqual('preloader:Get:1');
     });
     await waitFor(() => {
-      expect(result.current.untagged.data).toEqual('preloader:Get:1');
+      expect(result.current.other.data).toEqual('preloader:Get:1');
     });
     // the preload itself plus one real fetch for the key that did not match
     expect(backend.calls.length).toEqual(2);

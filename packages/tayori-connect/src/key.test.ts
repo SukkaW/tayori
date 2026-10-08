@@ -63,7 +63,7 @@ function setup() {
 }
 
 describe('tayori-connect SWR keys', () => {
-  it('builds [transport, "<service>/<method>", request, cacheTags], with the message created', async () => {
+  it('builds [transport, "<service>/<method>", request], with the message created', async () => {
     const { transport, calls, spy, wrapper } = setup();
     const at = new Date('2024-01-02T03:04:05Z');
     const message = {
@@ -77,22 +77,21 @@ describe('tayori-connect SWR keys', () => {
       nested: { value: 'n' }
     };
 
-    const { result } = renderHook(() => useData(TestService.method.echo, { message, cacheTags: ['#k'] }), { wrapper });
+    const { result } = renderHook(() => useData(TestService.method.echo, { message }), { wrapper });
     await waitFor(() => {
       expect(result.current.data?.text).toEqual('a');
     });
 
     const key = spy.keys[0];
     expect(isTayoriConnectKey(key)).toEqual(true);
-    const [client, methodKey, argKey, cacheTags] = plain(key);
+    const [client, methodKey, argKey] = plain(key);
     expect(transport).toExactlyEqual(client);
     expect(methodKey).toEqual('tayori.test.v1.TestService/Echo');
     // the key holds the request itself (lossless), with the message created like the transport
     // would; no `headers` property at all when the request has none
     expect(argKey).toEqual({ message: create(EchoRequestSchema, message) });
-    expect(cacheTags).toEqual(['#k']);
     // nothing else is enumerable (the tayori brand is a hidden property)
-    expect(Object.keys(key as object)).toEqual(['0', '1', '2', '3']);
+    expect(Object.keys(key as object)).toEqual(['0', '1', '2']);
 
     // the handler received exactly the request from the key
     expect(calls.length).toEqual(1);
@@ -277,19 +276,19 @@ describe('createConnectBackend().argKey', () => {
 
   it('creates the message and only adds `headers` when the request has any', () => {
     const message = create(EchoRequestSchema, { text: 'a' });
-    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' } })).toEqual([{ message }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message: { text: 'a' } })).toEqual({ message });
     // an already created message is kept as is
-    expect((backend.argKey(TestService.method.echo, { message })[0] as TayoriConnectArgKey).message).toExactlyEqual(message);
+    expect((backend.argKey(TestService.method.echo, { message }) as TayoriConnectArgKey).message).toExactlyEqual(message);
     // an empty request message
-    expect(backend.argKey(TestService.method.echo, { message: {} })).toEqual([{ message: create(EchoRequestSchema) }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message: {} })).toEqual({ message: create(EchoRequestSchema) });
     // empty headers are no headers
-    expect(backend.argKey(TestService.method.echo, { message, headers: {} })).toEqual([{ message }, undefined]);
-    expect(backend.argKey(TestService.method.echo, { message, headers: new Headers() })).toEqual([{ message }, undefined]);
+    expect(backend.argKey(TestService.method.echo, { message, headers: {} })).toEqual({ message });
+    expect(backend.argKey(TestService.method.echo, { message, headers: new Headers() })).toEqual({ message });
     expect(backend.argKey(TestService.method.echo, { message, headers: { 'X-Tenant': 't1', 'accept-language': 'ja' } }))
-      .toEqual([{ message, headers: { 'accept-language': 'ja', 'x-tenant': 't1' } }, undefined]);
+      .toEqual({ message, headers: { 'accept-language': 'ja', 'x-tenant': 't1' } });
   });
 
-  it('keeps every call option but the abort signal, and passes cacheTags through as slot 3', () => {
+  it('keeps every call option but the abort signal', () => {
     const onHeader = sinon.spy();
     const onTrailer = sinon.spy();
     const contextValues = createContextValues();
@@ -299,9 +298,8 @@ describe('createConnectBackend().argKey', () => {
       contextValues,
       onHeader,
       onTrailer,
-      signal: new AbortController().signal,
-      cacheTags: ['#a', '#b']
-    })).toEqual([{ message: create(EchoRequestSchema, { text: 'a' }), timeoutMs: 5000, contextValues, onHeader, onTrailer }, ['#a', '#b']]);
+      signal: new AbortController().signal
+    })).toEqual({ message: create(EchoRequestSchema, { text: 'a' }), timeoutMs: 5000, contextValues, onHeader, onTrailer });
     // building a key never performs the request
     expect(onHeader.called).toEqual(false);
     expect(onTrailer.called).toEqual(false);
@@ -310,24 +308,24 @@ describe('createConnectBackend().argKey', () => {
   it('builds the same key for the same request built again on the next render', () => {
     const onHeader = sinon.spy();
     const render = () => backend.argKey(TestService.method.echo, {
-      message: { text: 'a', big: 1n, tags: ['x'], nested: { value: 'n' } },
+      message: { text: 'a', big: 1n, at: timestampFromDate(new Date('2024-01-02T03:04:05Z')), tags: ['x'], counts: { a: 1 }, nested: { value: 'n' } },
       headers: new Headers({ 'X-Tenant': 't1' }),
       timeoutMs: 5000,
       onHeader
-    })[0];
+    });
     expect(unstable_serialize([render()])).toEqual(unstable_serialize([render()]));
     // but these compare by identity: created anew, they are a new key (documented on TayoriConnectRequest)
-    const withBytes = () => backend.argKey(TestService.method.echo, { message: { blob: new Uint8Array([1]) } })[0];
-    const withCallback = () => backend.argKey(TestService.method.echo, { message: {}, onHeader() { /* noop */ } })[0];
+    const withBytes = () => backend.argKey(TestService.method.echo, { message: { blob: new Uint8Array([1]) } });
+    const withCallback = () => backend.argKey(TestService.method.echo, { message: {}, onHeader() { /* noop */ } });
     expect(unstable_serialize([withBytes()])).not.toEqual(unstable_serialize([withBytes()]));
     expect(unstable_serialize([withCallback()])).not.toEqual(unstable_serialize([withCallback()]));
   });
 
   it('normalizes header names and order so equivalent headers hash the same', () => {
-    const [a] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'X-Tenant': 't1', 'Accept-Language': 'ja' } });
-    const [b] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: new Headers([['accept-language', 'ja'], ['x-tenant', 't1']]) });
-    const [c] = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'x-tenant': 't2' } });
-    const [d] = backend.argKey(TestService.method.echo, { message: { text: 'a' } });
+    const a = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'X-Tenant': 't1', 'Accept-Language': 'ja' } });
+    const b = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: new Headers([['accept-language', 'ja'], ['x-tenant', 't1']]) });
+    const c = backend.argKey(TestService.method.echo, { message: { text: 'a' }, headers: { 'x-tenant': 't2' } });
+    const d = backend.argKey(TestService.method.echo, { message: { text: 'a' } });
     expect(unstable_serialize(a as never)).toEqual(unstable_serialize(b as never));
     expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(c as never));
     expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(d as never));
@@ -377,7 +375,7 @@ describe('google.protobuf.Any requests', () => {
   it('are keyed and sent as they are, no type registry needed', async () => {
     const backend = createConnectBackend();
     const request = { message: packed };
-    const [argKey] = backend.argKey(wrap, request);
+    const argKey = backend.argKey(wrap, request);
     expect(argKey).toEqual({ message: packed });
 
     const transport = createRouterTransport(({ rpc }) => {

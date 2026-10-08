@@ -95,13 +95,13 @@ describe('useInfinite', () => {
     expect(backend.calls.map((call) => call.method)).toEqual(['Other']);
   });
 
-  it('puts arg-level cacheTags into every page key and sends the rest of the arg to the backend', async () => {
+  it('stores every page under the key useData would build for the same request, and sends that request', async () => {
     const { backend, client, instance, wrapper } = setup();
 
     const { result } = renderHook(() => ({
       list: instance.useInfinite(
         'List',
-        (pageIndex) => ({ id: pageIndex + 1, cacheTags: ['#arg'], timeout: 7 }),
+        (pageIndex) => ({ id: pageIndex + 1, timeout: 7 }),
         { revalidateFirstPage: false }
       ),
       swr: useSWRConfig()
@@ -115,12 +115,11 @@ describe('useInfinite', () => {
     const { cache } = result.current.swr;
     const cachedPage = (method: string, arg: FakeArg) => cache.get(unstable_serialize(instance.getKey(client, method, arg)))?.data;
 
-    // cacheTags are part of the page key
-    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 7 })).toEqual('c1:List:1');
-    expect(cachedPage('List', { id: 1, timeout: 7 })).toEqual(undefined);
-    // keys are lossless, so another `timeout` is another request
-    expect(cachedPage('List', { id: 1, cacheTags: ['#arg'], timeout: 99 })).toEqual(undefined);
-    // the backend receives the request stored in the page key: everything but tayori's cacheTags
+    expect(cachedPage('List', { id: 1, timeout: 7 })).toEqual('c1:List:1');
+    // keys are lossless, so another `timeout` (or none) is another request
+    expect(cachedPage('List', { id: 1, timeout: 99 })).toEqual(undefined);
+    expect(cachedPage('List', { id: 1 })).toEqual(undefined);
+    // the backend receives the request stored in the page key
     expect(backend.calls.map((call) => call.arg)).toEqual([{ id: 1, timeout: 7 }]);
   });
 });
@@ -133,8 +132,7 @@ describe('useInfinite requests that cannot be keyed', () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
-      const { cacheTags, ...rest } = arg;
-      return [rest, cacheTags];
+      return arg;
     };
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });
@@ -154,8 +152,7 @@ describe('useInfinite requests that cannot be keyed', () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
-      const { cacheTags, ...rest } = arg;
-      return [rest, cacheTags];
+      return arg;
     };
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });

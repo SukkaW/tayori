@@ -2,17 +2,17 @@ import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
+import { useSWRConfig } from 'swr';
 import sinon from 'sinon';
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import type { Transport } from '@connectrpc/connect';
 
-import { tayoriConnect, unstable_mutateWithTags } from '.';
+import { tayoriConnect } from '.';
 import { EchoResponseSchema, TestService } from '../test/gen/tayori/test/v1/test_pb';
 import type { EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
 import { createTestTransport } from '../test/router';
 import { createWrapper } from '../test/wrapper';
-import { createTag } from '../test/cache-tag';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, useTransport, TayoriProvider } = tayoriConnect();
 
@@ -375,33 +375,26 @@ describe('useTransport', () => {
   });
 });
 
-describe('unstable_mutateWithTags', () => {
-  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches SWR's default cache, so this
-  // test opts out of the isolated cache provider and uses tags unique to itself (see `createTag`)
-  it('revalidates the hooks whose cacheTags match', async () => {
-    const [tag, other, unrelated] = [createTag('t'), createTag('other'), createTag('unrelated')];
-    const { transport, calls } = createTestTransport();
-    const wrapper = createWrapper({ TayoriProvider, initTransport: () => transport, swr: { provider: undefined } });
+describe('SWR tags', () => {
+  it('revalidateTag() from the nearest SWRConfig refetches the hooks tagged through the SWR options', async () => {
+    const { calls, wrapper } = setup();
 
     const { result } = renderHook(() => ({
-      tagged: useData(TestService.method.echo, { message: { text: 'tagged' }, cacheTags: [tag, other] }),
-      untagged: useData(TestService.method.echo, { message: { text: 'untagged' } })
+      tagged: useData(TestService.method.echo, { message: { text: 'tagged' } }, { tags: ['echo'] }).data,
+      untagged: useData(TestService.method.echo, { message: { text: 'untagged' } }).data,
+      swr: useSWRConfig()
     }), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.tagged.data?.text).toEqual('tagged');
-      expect(result.current.untagged.data?.text).toEqual('untagged');
+      expect(result.current.tagged?.text).toEqual('tagged');
+      expect(result.current.untagged?.text).toEqual('untagged');
     });
     expect(calls.length).toEqual(2);
 
-    await act(async () => {
-      await unstable_mutateWithTags([tag]);
-    });
+    await act(() => result.current.swr.revalidateTag('echo'));
     expect(calls.map((call) => call.request.text)).toEqual(['tagged', 'untagged', 'tagged']);
 
-    await act(async () => {
-      await unstable_mutateWithTags([unrelated]);
-    });
+    await act(() => result.current.swr.revalidateTag('unrelated'));
     expect(calls.length).toEqual(3);
   });
 });
@@ -424,14 +417,12 @@ function useTypeChecks() {
 
   const withFallback = useData(
     TestService.method.echo,
-    { message: { text: 'a' }, headers: { 'x-test': 'typed' }, timeoutMs: 1000, cacheTags: ['#typed'] },
+    { message: { text: 'a' }, headers: { 'x-test': 'typed' }, timeoutMs: 1000 },
     { fallbackData: create(EchoResponseSchema, { text: 'fallback' }) }
   );
   const nonNullable: EchoResponse = withFallback.data;
   // @ts-expect-error -- call options live in the request, the third argument is SWR config only
   useData(TestService.method.echo, { message: { text: 'a' } }, { headers: { 'x-test': 'typed' } });
-  // @ts-expect-error -- so do cacheTags
-  useData(TestService.method.echo, { message: { text: 'a' } }, { cacheTags: ['#typed'] });
   // @ts-expect-error -- `signal` only exists for mutations, SWR manages the lifecycle of useData requests
   useData(TestService.method.echo, { message: { text: 'a' }, signal: new AbortController().signal });
 

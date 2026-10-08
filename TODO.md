@@ -5,7 +5,6 @@ Follow-ups deliberately left out of the `tayori-core` / `tayori` / `tayori-conne
 ## Features
 
 - [ ] **Server streaming in `tayori-connect`.** Only unary methods are supported; `getMethodKey()` throws for streaming descriptors. Design sketch: `transport.stream(method, signal, timeoutMs, headers, createAsyncIterable([input]))` behind either a `useSWRSubscription` wrapper or a standalone `useServerStream(method, input, { onMessage })`. `TayoriBackend` reserves an optional `stream` member for this.
-- [ ] **`unstable_mutateWithTags` vs `useInfinite`.** SWR's filter-based `mutate` skips `$inf$` aggregate keys and page keys have no revalidators, so tagged pages are matched but the list is not refetched. Fix: after the filter pass, iterate `SWRConfig.defaultValue.cache.keys()`, and for every matched first-page hash whose `'$inf$' + hash` entry exists, set its SWR-internal `_i: true` flag and `mutate(infKey)` (the protocol `swr/infinite`'s own bound `mutate()` uses). Touches an internal flag, hence the `unstable_` prefix stays.
 - [ ] **Connect example page** in `packages/example-nextjs-app`: `connectrpc.eliza.v1.ElizaService` against `https://demo.connectrpc.com`, mounted next to the Hey API provider to demonstrate that both coexist.
 
 ## DX

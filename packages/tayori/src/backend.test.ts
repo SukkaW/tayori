@@ -36,13 +36,10 @@ describe('createHeyApiBackend', () => {
     expect(sdkArg).toEqual({ query: { id: 1 }, kyOptions: { retry: 0 } });
   });
 
-  it('strips cacheTags before calling the SDK and keeps them for the key', async () => {
-    const { sdk, received } = createSdk();
+  it('uses the request options themselves as the key', () => {
+    const { sdk } = createSdk();
+    const sdkArg = { body: { a: 1 } };
 
-    await heyApiBackend.call(client, sdk, { body: { a: 1 }, cacheTags: ['#t'] });
-    expect('cacheTags' in received[0]).toEqual(false);
-    expect(received[0].body).toEqual({ a: 1 });
-
-    expect(heyApiBackend.argKey(sdk, { body: { a: 1 }, cacheTags: ['#t'] })).toEqual([{ body: { a: 1 } }, ['#t']]);
+    expect(heyApiBackend.argKey(sdk, sdkArg) as typeof sdkArg).toExactlyEqual(sdkArg);
   });
 });

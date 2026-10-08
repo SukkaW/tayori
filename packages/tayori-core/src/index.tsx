@@ -11,7 +11,7 @@ import { stableHash } from 'stable-hash';
 import type { BareFetcher, SWRConfiguration, Key as SWRKey, SWRResponse } from 'swr';
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyLoader, SWRInfiniteResponse } from 'swr/infinite';
 
-import useSWR, { SWRConfig, useSWRConfig, preload as swrPreload } from 'swr';
+import useSWR, { useSWRConfig, preload as swrPreload } from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import useSWRInfinite from 'swr/infinite';
 
@@ -41,7 +41,6 @@ export { isTayoriKey, kTayoriKey } from './key';
 export type {
   Apply,
   ArgOf,
-  CacheTag,
   ConstTypeFn,
   DataOf,
   Falsy,
@@ -57,7 +56,6 @@ export type {
   TypeFn,
   UseMutationOptions
 } from './types';
-export { mutateWithTags as unstable_mutateWithTags, useMutateWithTags as unstable_useMutateWithTags } from './mutate-with-tags';
 
 /**
  * Create the tayori hooks + provider for a backend. This is what `tayori` (Hey API) and
@@ -93,28 +91,23 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     return nullthrow(use(ClientContext), `[${backend.name}] hooks must be used within <TayoriProvider />`);
   }
 
-  const swrConfigValue: SWRConfiguration = {
-    keepPreviousData: true
-  };
-
+  // The provider only provides the client and installs no SWR options of its own (it used to force
+  // `keepPreviousData: true`), so SWR's defaults and the app's own `<SWRConfig />` apply unchanged.
   function TayoriProvider({ children, initClient }: TayoriProviderProps<Client>) {
     return (
       <ClientContext value={useSingleton(() => initClient()).current}>
-        <SWRConfig value={swrConfigValue}>
-          {children}
-        </SWRConfig>
+        {children}
       </ClientContext>
     );
   }
 
   // ---------- Keys ----------
   /**
-   * Build one SWR key: `[client, methodKey, argKey, cacheTags]`. This is THE key layout, shared by
-   * every hook (and `useInfinite`'s pages). Throws when `backend.argKey` does.
+   * Build one SWR key: `[client, methodKey, argKey]`. This is THE key layout, shared by every hook
+   * (and `useInfinite`'s pages). Throws when `backend.argKey` does.
    */
   function buildKey(client: Client, methodKey: unknown, method: Method, arg: Arg): Key {
-    const [argKey, cacheTags] = backend.argKey(method, arg);
-    return brand<TayoriKey<Client>>([client, methodKey, argKey, cacheTags], backend.name);
+    return brand<TayoriKey<Client>>([client, methodKey, backend.argKey(method, arg)], backend.name);
   }
 
   /**
@@ -268,8 +261,8 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
         // So we just normally would not have the same key for useMutation and useData/useDataImmutable
         // (unless populateCache is enabled for special edge cases).
         //
-        // In the future, we might be able to use `cacheTags` feature to automatically flush corresponding cache,
-        // but that still doesn't justify using swrMutate here.
+        // SWR's `tags` option / `revalidateTag` cover flushing related entries after a mutation, which
+        // still doesn't justify using swrMutate here.
         const promise = backend.call(client, method, arg) as Promise<D>;
 
         const handleSuccess = triggerOptions?.onSuccess || onSuccessFromHook;

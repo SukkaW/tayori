@@ -12,23 +12,23 @@ const plain = (key: unknown) => Array.from(key as Iterable<unknown>);
 const client: FakeClient = { name: 'client' };
 
 describe('getKey', () => {
-  it('builds a branded [client, methodKey, argKey, cacheTags] array', () => {
-    const key = createTayori(createFakeBackend('test')).getKey(client, 'Get', { id: 1, cacheTags: ['#a'] });
+  it('builds a branded [client, methodKey, argKey] array', () => {
+    const key = createTayori(createFakeBackend('test')).getKey(client, 'Get', { id: 1 });
 
     expect(Array.isArray(key)).toEqual(true);
-    expect(plain(key)).toEqual([client, 'Get', { id: 1 }, ['#a']]);
+    expect(plain(key)).toEqual([client, 'Get', { id: 1 }]);
     expect(isTayoriKey(key)).toEqual(true);
     // the brand is the backend name, non-enumerable, and never affects SWR's hash
     expect(key?.[kTayoriKey]).toEqual('test');
-    expect(Object.keys(key ?? {})).toEqual(['0', '1', '2', '3']);
-    expect(unstable_serialize(key as never)).toEqual(unstable_serialize([client, 'Get', { id: 1 }, ['#a']]));
+    expect(Object.keys(key ?? {})).toEqual(['0', '1', '2']);
+    expect(unstable_serialize(key as never)).toEqual(unstable_serialize([client, 'Get', { id: 1 }]));
   });
 
-  it('is lossless: every request option is part of the key, only cacheTags move to their own slot', () => {
+  it('is lossless: every request option is part of the key', () => {
     const { getKey } = createTayori(createFakeBackend());
-    const a = getKey(client, 'Get', { id: 1, timeout: 10, cacheTags: ['#a'] });
-    const b = getKey(client, 'Get', { id: 1, timeout: 20, cacheTags: ['#a'] });
-    expect(plain(a)).toEqual([client, 'Get', { id: 1, timeout: 10 }, ['#a']]);
+    const a = getKey(client, 'Get', { id: 1, timeout: 10 });
+    const b = getKey(client, 'Get', { id: 1, timeout: 20 });
+    expect(plain(a)).toEqual([client, 'Get', { id: 1, timeout: 10 }]);
     expect(unstable_serialize(a as never)).not.toEqual(unstable_serialize(b as never));
   });
 
@@ -44,15 +44,14 @@ describe('getKey', () => {
 
   it('resolves request functions like SWR key functions', () => {
     const { getKey } = createTayori(createFakeBackend());
-    expect(plain(getKey(client, 'Get', () => ({ id: 2 })))).toEqual([client, 'Get', { id: 2 }, undefined]);
+    expect(plain(getKey(client, 'Get', () => ({ id: 2 })))).toEqual([client, 'Get', { id: 2 }]);
   });
 
   it('returns null ("not ready") for falsy requests, falsy or throwing request functions, and requests the backend cannot key', () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
-      const { cacheTags, ...rest } = arg;
-      return [rest, cacheTags];
+      return arg;
     };
     const { getKey } = createTayori(backend);
 

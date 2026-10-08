@@ -38,7 +38,7 @@ import { ElizaService } from './gen/connectrpc/eliza/v1/eliza_pb';
 
 // The method descriptor is the "SDK method". The second argument describes the request, like
 // in `tayori`: the request message under `message`, next to Connect's per-call options
-// (`headers`, `timeoutMs`, ...) and tayori's `cacheTags`. SWR options go third.
+// (`headers`, `timeoutMs`, ...). SWR options go third.
 const { data, error, isLoading } = useData(ElizaService.method.say, { message: { sentence: 'Hello' } });
 
 // Pass a falsy value (or a function returning one) to pause the request

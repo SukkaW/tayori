@@ -1,6 +1,6 @@
 'use client';
 
-import type { BrandedTayoriKeyLoader, CacheTag, TayoriKey, TayoriProviderProps as CoreTayoriProviderProps } from 'tayori-core';
+import type { BrandedTayoriKeyLoader, TayoriKey, TayoriProviderProps as CoreTayoriProviderProps } from 'tayori-core';
 import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 
 import type { DefaultSdkRequestResult, GeneralSdkMethod, GeneralSdkOptions, GeneralSdkRequestResult, HeyAPIClientLike } from './backend';
@@ -181,7 +181,7 @@ export function tayori<
     TayoriProvider,
     /**
      * Returns the Hey API client of the nearest `<TayoriProvider />`. The client is slot 0 of every
-     * SWR key (`[client, sdkMethod, sdkArg, cacheTags]`), so you need it to build a key by hand
+     * SWR key (`[client, sdkMethod, sdkArg]`), so you need it to build a key by hand
      * for `mutate()` or `SWRConfig`'s `fallback`.
      */
     useClient: core.useClient,
@@ -216,15 +216,12 @@ export function tayori<
  * If you also write your own SWR middleware, you can use this function to check if the SWR
  * request is from tayori or not.
  *
- * Note that the key layout is `[client, sdkMethod, sdkArg, cacheTags]` (it was `[sdkMethod, sdkArg, cacheTags]`
+ * Note that the key layout is `[client, sdkMethod, sdkArg]` (it was `[sdkMethod, sdkArg, cacheTags]`
  * before 0.4.0), and that SWR hands middlewares the raw key, which for `useInfinite` is the branded
  * `(pageIndex, previousPageData) => key` loader, so check `Array.isArray(key)` before indexing into it.
  */
 export function isInternalSWRKey(key: unknown): key is InternalSWRKey | BrandedTayoriKeyLoader<HeyAPIClientLike, GeneralSdkMethod> {
   return isTayoriKey(key) && key[kTayoriKey] === HEY_API_BACKEND_NAME;
 }
-
-export { unstable_mutateWithTags, unstable_useMutateWithTags } from 'tayori-core';
-export type { CacheTag };
 
 export { isZodError } from './_is-zod-error';

@@ -7,8 +7,6 @@ import type { SWRInfiniteConfiguration } from 'swr/infinite';
  */
 export type Falsy = null | undefined | 0 | false;
 
-export type CacheTag = `#${string}`;
-
 /**
  * The SWR key tayori builds for every request, shared by all backends.
  *
@@ -17,13 +15,11 @@ export type CacheTag = `#${string}`;
  *   `<TayoriProvider />`) never share cache entries.
  * - `methodKey` identifies the method: the SDK function itself for Hey API, `"<service>/<method>"` for Connect.
  * - `argKey` is the (normalized) request argument.
- * - `cacheTags` are user-provided tags for `unstable_mutateWithTags`.
  */
 export type TayoriKey<Client = unknown, MethodKey = unknown, ArgKey = unknown> = [
   client: Client,
   methodKey: MethodKey,
-  argKey: ArgKey,
-  cacheTags: CacheTag[] | undefined
+  argKey: ArgKey
 ];
 
 /**
@@ -62,7 +58,7 @@ export interface ConstTypeFn<T> extends TypeFn {
 export interface TayoriTypes {
   /** Every method the backend accepts, e.g. `(arg: any) => any` (Hey API) or `DescMethodUnary` (Connect) */
   readonly Method: unknown,
-  /** Every request arg, what `TayoriBackend.argKey` / `TayoriBackend.call` receive. Includes tayori's `cacheTags`. */
+  /** Every request arg, what `TayoriBackend.argKey` / `TayoriBackend.call` receive */
   readonly Arg: unknown,
   /** Every response, what `TayoriBackend.call` resolves to */
   readonly Data: unknown,
@@ -93,7 +89,7 @@ export type DataOf<T extends TayoriTypes, M> = Apply<T['DataOf'], M>;
  * `T['Data']`; the per-method members of `T` type the hooks `createTayori()` returns.
  *
  * An `Arg` describes one request completely (for Hey API the generated request options, for
- * Connect `{ message, headers, timeoutMs, ... }`), plus tayori's `cacheTags`.
+ * Connect `{ message, headers, timeoutMs, ... }`).
  */
 export interface TayoriBackend<T extends TayoriTypes = TayoriTypes, Client = unknown> {
   /**
@@ -110,12 +106,12 @@ export interface TayoriBackend<T extends TayoriTypes = TayoriTypes, Client = unk
    */
   methodKey(method: T['Method']): unknown,
   /**
-   * Slot 2 of the SWR key, plus the `cacheTags` found in the arg (slot 3). Keys are lossless: the
-   * hooks send exactly what is in slot 2, so `argKey` is the arg itself without `cacheTags`, at
-   * most normalized into an equivalent request that hashes more stably across renders (e.g. headers
-   * as a plain object). It may leave out what only `useMutation().trigger()` uses (an abort signal).
+   * Slot 2 of the SWR key. Keys are lossless: the hooks send exactly what is in slot 2, so `argKey`
+   * is the arg itself, at most normalized into an equivalent request that hashes more stably across
+   * renders (e.g. headers as a plain object). It may leave out what only `useMutation().trigger()`
+   * uses (an abort signal).
    */
-  argKey(method: T['Method'], arg: T['Arg']): readonly [argKey: unknown, cacheTags: CacheTag[] | undefined],
+  argKey(method: T['Method'], arg: T['Arg']): unknown,
   /**
    * Perform the request. The hooks pass the request stored in the key (slot 2, see `argKey`),
    * `useMutation().trigger()` passes its arg as is.

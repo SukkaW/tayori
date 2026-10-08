@@ -1,7 +1,7 @@
 import type { DescMessage, DescMethod, DescMethodUnary, MessageInitShape, MessageShape } from '@bufbuild/protobuf';
 import { create } from '@bufbuild/protobuf';
 import type { CallOptions, Transport } from '@connectrpc/connect';
-import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
+import type { TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /**
  * Connect per-call options that tayori-connect forwards to the transport: exactly what you would
@@ -12,7 +12,7 @@ export type TayoriConnectCallOptions = Pick<CallOptions, 'headers' | 'timeoutMs'
 
 /**
  * Describes one request, the way Hey API's request options describe a request in `tayori`:
- * the request message plus Connect's per-call options plus tayori's `cacheTags`.
+ * the request message plus Connect's per-call options.
  *
  * The whole request is the SWR key, so it must stay the same across renders. Messages, plain
  * values, plain header objects and `new Headers()` are normalized into stable keys, but these are
@@ -26,12 +26,7 @@ export interface TayoriConnectRequest<I extends DescMessage = DescMessage> exten
    * Pass `{}` for methods whose request message has no fields. It is required on purpose: a
    * request bag that forgot its message would otherwise silently send an empty message.
    */
-  message: MessageInitShape<I>,
-  /**
-   * Tags that can later be used to revalidate this request via `unstable_mutateWithTags`.
-   * Tags are part of the SWR key.
-   */
-  cacheTags?: CacheTag[]
+  message: MessageInitShape<I>
 }
 
 /**
@@ -129,7 +124,7 @@ export function createConnectBackend(): TayoriConnectBackend {
     // - headers become a plain record with lower-cased names (see `headersKey`)
     // - the abort signal is left out: it only exists for `useMutation().trigger()`, which sends its
     //   request as is, and must not keep a `populateCache` key from matching `useData`'s
-    argKey(method, { cacheTags, signal: _signal, headers, ...request }) {
+    argKey(method, { signal: _signal, headers, ...request }) {
       const argKey: TayoriConnectRequest = {
         ...request,
         message: create(method.input, request.message)
@@ -138,7 +133,7 @@ export function createConnectBackend(): TayoriConnectBackend {
       if (normalizedHeaders) {
         argKey.headers = normalizedHeaders;
       }
-      return [argKey, cacheTags];
+      return argKey;
     },
     // Same as what Connect's own `createClient()` does for unary methods
     async call(transport, method, request) {
