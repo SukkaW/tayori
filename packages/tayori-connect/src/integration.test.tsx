@@ -1,15 +1,17 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { SWRConfig } from 'swr';
+import { setTimeout as delay } from 'node:timers/promises';
+import { SWRConfig, useSWRConfig } from 'swr';
+import type { DescMethod } from '@bufbuild/protobuf';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError, createClient } from '@connectrpc/connect';
+import type { Transport } from '@connectrpc/connect';
 
-import { tayoriConnect, unstable_useMutateWithTags } from '.';
-import { BookService, Genre, ListBooksRequestSchema } from '../test/gen/library/catalog/v1/book_pb';
+import { isTayoriConnectKey, tayoriConnect } from '.';
+import { BookService, Genre, GetBookRequestSchema, ListBooksRequestSchema } from '../test/gen/library/catalog/v1/book_pb';
 import { LoanService } from '../test/gen/library/lending/v1/loan_pb';
 import { createLibrary, LIBRARIAN } from '../test/library';
-import { createTag } from '../test/cache-tag';
 import { createWrapper } from '../test/wrapper';
 
 // These tests wire tayori-connect the way an application does: generated code for several services
@@ -26,6 +28,21 @@ function setup(member?: string) {
 function Loans() {
   const { data } = useData(LoanService.method.listLoans, { message: {} });
   return <output>{data ? data.loans.map((loan) => loan.book?.title).join(',') : 'loading'}</output>;
+}
+
+/** Let pending fetches settle */
+function settle(ms = 20) {
+  // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of this package
+  return act(() => delay(ms));
+}
+
+/** The `routeByService` sketch from connect.md: one transport, some services served by another server */
+function routeByService(main: Transport, other: Transport, otherServices: Set<string>): Transport {
+  const pick = (method: DescMethod) => (otherServices.has(method.parent.typeName) ? other : main);
+  return {
+    unary: (method, ...rest) => pick(method).unary(method, ...rest),
+    stream: (method, ...rest) => pick(method).stream(method, ...rest)
+  };
 }
 
 /** Run `trigger`, returning what it rejected with */
@@ -178,14 +195,36 @@ describe('lists', () => {
     expect(timestampDate(books[0].publishedAt!).toISOString()).toEqual('2019-03-01T00:00:00.000Z');
   });
 
-  it('revalidates a tagged list after a mutation created a new entry', async () => {
-    const tag = createTag('books');
+  it('serves a view that needs only the first page from the cache entry of useInfinite\'s first page', async () => {
+    const { library, wrapper } = setup('ada');
+
+    const { result, rerender } = renderHook(({ firstPageOnly }: { firstPageOnly: boolean }) => ({
+      pages: useInfinite(BookService.method.listBooks, (_pageIndex, previous) => {
+        if (previous && !previous.nextPageToken) return null; // reached the end
+        return { message: { pageSize: 2, pageToken: previous?.nextPageToken } };
+      }).data,
+      // the same request as the first page: `pageToken` left out is the same message as `pageToken: undefined`
+      first: useData(BookService.method.listBooks, firstPageOnly && { message: { pageSize: 2 } }, { revalidateIfStale: false }).data
+    }), { wrapper, initialProps: { firstPageOnly: false } });
+
+    await waitFor(() => {
+      expect(result.current.pages?.length).toEqual(1);
+    });
+    rerender({ firstPageOnly: true });
+
+    // available on the very first render, without a request of its own
+    expect(result.current.first?.books.map((book) => book.id)).toEqual(['b1', 'b2']);
+    await settle();
+    expect(library.requests(ListBooksRequestSchema).length).toEqual(1);
+  });
+
+  it('revalidates a list tagged through the SWR options after a mutation created a new entry', async () => {
     const { library, wrapper } = setup(LIBRARIAN);
 
     const { result } = renderHook(() => ({
-      list: useData(BookService.method.listBooks, { message: {}, cacheTags: [tag] }),
+      list: useData(BookService.method.listBooks, { message: {} }, { tags: ['books'] }),
       create: useMutation(BookService.method.createBook),
-      invalidate: unstable_useMutateWithTags()
+      swr: useSWRConfig()
     }), { wrapper });
 
     await waitFor(() => {
@@ -193,13 +232,87 @@ describe('lists', () => {
     });
     await act(async () => {
       await result.current.create.trigger({ message: { book: { title: 'Fresh Ink', priceCents: 500n } } });
-      await result.current.invalidate([tag]);
+      await result.current.swr.revalidateTag('books');
     });
     await waitFor(() => {
       expect(result.current.list.data?.total).toEqual(6n);
     });
     expect(result.current.list.data?.books.at(-1)?.title).toEqual('Fresh Ink');
     expect(library.requests(ListBooksRequestSchema).length).toEqual(2);
+  });
+
+  it('clears one entry without refetching it through a filtered mutate over tayori keys, e.g. after a delete', async () => {
+    const { library, wrapper } = setup(LIBRARIAN);
+    const getBook = `${BookService.typeName}/${BookService.method.getBook.name}`;
+
+    const { result } = renderHook(() => ({
+      book: useData(BookService.method.getBook, { message: { id: 'b1' } }).data,
+      remove: useMutation(BookService.method.deleteBook),
+      swr: useSWRConfig()
+    }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.book?.book?.title).toEqual('The Long Orbit');
+    });
+    await act(async () => {
+      await result.current.remove.trigger({ message: { id: 'b1' } });
+      // revalidating a deleted book would only yield a NotFound error: clear its entry instead
+      await result.current.swr.mutate(
+        (key) => isTayoriConnectKey(key) && Array.isArray(key) && key[1] === getBook && (key[2].message as { id?: string }).id === 'b1',
+        undefined,
+        { revalidate: false }
+      );
+    });
+    expect(result.current.book).toEqual(undefined);
+    expect(library.requests(GetBookRequestSchema).length).toEqual(1);
+  });
+});
+
+describe('accounts and servers', () => {
+  it('drops every cached response on sign-out with the scoped unload, useInfinite lists included', async () => {
+    const { library, wrapper } = setup('ada');
+
+    const { result } = renderHook(() => ({
+      loans: useData(LoanService.method.listLoans, { message: {} }).data,
+      books: useInfinite(BookService.method.listBooks, (_pageIndex, previous) => {
+        if (previous && !previous.nextPageToken) return null; // reached the end
+        return { message: { pageSize: 2, pageToken: previous?.nextPageToken } };
+      }).data,
+      swr: useSWRConfig()
+    }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.loans?.loans.length).toEqual(1);
+      expect(result.current.books?.length).toEqual(1);
+    });
+    const requests = library.calls.length;
+
+    // a filter `mutate`, even `mutate(() => true)`, skips useInfinite's entry: unload drops everything
+    act(() => result.current.swr.unload({ revalidate: false }));
+
+    expect(result.current.loans).toEqual(undefined);
+    expect(result.current.books).toEqual(undefined);
+    await settle();
+    expect(library.calls.length).toEqual(requests);
+  });
+
+  it('routes the services of a second server through one composed transport', async () => {
+    const catalog = createLibrary();
+    const lending = createLibrary();
+    const transport = routeByService(catalog.connect('ada'), lending.connect('ada'), new Set([LoanService.typeName]));
+    const wrapper = createWrapper({ TayoriProvider, initTransport: () => transport });
+
+    const { result } = renderHook(() => ({
+      books: useData(BookService.method.listBooks, { message: {} }).data,
+      loans: useData(LoanService.method.listLoans, { message: {} }).data
+    }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.books?.total).toEqual(5n);
+      expect(result.current.loans?.loans.length).toEqual(1);
+    });
+    expect(catalog.calls.map(({ method }) => method)).toEqual(['ListBooks']);
+    expect(lending.calls.map(({ method }) => method)).toEqual(['ListLoans']);
   });
 });
 

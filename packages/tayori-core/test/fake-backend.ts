@@ -1,22 +1,19 @@
-import type { CacheTag, TayoriBackend, TayoriSimpleTypes } from '../src/types';
+import type { TayoriBackend, TayoriSimpleTypes } from '../src/types';
 
 export interface FakeClient {
   readonly name: string
 }
 
-/**
- * The request bag of the fake backend: `id` and `timeout` are request options, `cacheTags` are tayori's.
- */
+/** The request bag of the fake backend */
 export interface FakeArg {
   id: number,
-  timeout?: number,
-  cacheTags?: CacheTag[]
+  timeout?: number
 }
 
 export interface FakeCall {
   client: FakeClient,
   method: string,
-  /** the request as sent: the one stored in the key for hooks (without cacheTags), the arg as is for useMutation */
+  /** the request as sent: the one stored in the key for hooks, the arg as is for useMutation */
   arg: FakeArg
 }
 
@@ -30,7 +27,7 @@ export interface FakeBackend extends TayoriBackend<FakeTypes, FakeClient> {
 }
 
 /**
- * A minimal backend: methods are strings, args are `{ id, timeout?, cacheTags? }`, responses are
+ * A minimal backend: methods are strings, args are `{ id, timeout? }`, responses are
  * `${client.name}:${method}:${id}` unless `respond` is overridden. Every call is recorded.
  */
 export function createFakeBackend(name = 'fake'): FakeBackend {
@@ -39,10 +36,8 @@ export function createFakeBackend(name = 'fake'): FakeBackend {
     calls: [],
     respond: (client, method, arg) => Promise.resolve(`${client.name}:${method}:${arg.id}`),
     methodKey: (method) => method,
-    // keys are lossless: the whole request, without tayori's cacheTags
-    argKey(_method, { cacheTags, ...rest }) {
-      return [rest, cacheTags];
-    },
+    // keys are lossless: the request itself
+    argKey: (_method, arg) => arg,
     call(client, method, arg) {
       backend.calls.push({ client, method, arg });
       return backend.respond(client, method, arg);

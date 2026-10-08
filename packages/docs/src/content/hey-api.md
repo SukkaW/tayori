@@ -131,7 +131,7 @@ app/
 >
 > `initClient` only runs once per `<TayoriProvider />` instance. If a part of your app talks to a different API, or needs a differently configured client (another `baseUrl`, another auth scheme, ...), nest another `<TayoriProvider initClient={...} />` around that subtree. The Hey API client instance is part of every SWR key, so requests made through different providers get their own cache entries and never collide, even when they call the same SDK method with the same request options.
 >
-> The SWR key of a request is `[client, sdkMethod, requestOptions, cacheTags]`. If you ever need to build one by hand (e.g. for SWR's `mutate()`), `useClient()` returns the client of the nearest `<TayoriProvider />`; and `isInternalSWRKey()` tells tayori requests apart from other SWR requests in your own SWR middleware (SWR hands middlewares the raw key, which is a function when the hook was called with a function argument, so check `Array.isArray(key)` before indexing into it).
+> The SWR key of a request is `[client, sdkMethod, requestOptions]`. If you ever need to build one by hand (e.g. for SWR's `mutate()`), `useClient()` returns the client of the nearest `<TayoriProvider />`; and `isInternalSWRKey()` tells tayori requests apart from other SWR requests in your own SWR middleware (SWR hands middlewares the raw key, which is a function when the hook was called with a function argument, so check `Array.isArray(key)` before indexing into it).
 
 ## Data Fetching
 
@@ -275,6 +275,8 @@ const { data: userProjects } = useData(
 
 When the function throws an error (e.g., when `user` hasn't loaded yet and is `undefined`, accessing `user.id` will throw), `useData` will also disable the request (just as if you returned a falsy value) until the next re-render.
 
+The same happens when tayori cannot build the SWR key from the request options: the request is paused and no error is reported. This is intentional and matches SWR, where a key function that throws means "not ready yet".
+
 ### SWR Options
 
 You can pass [SWR options](https://swr.vercel.app/docs/api#options) as the third argument of `useData`:
@@ -357,7 +359,7 @@ function PlanetCreationForm() {
 >
 > We are working with Hey API to expose more metadata information on the SDK methods, so we might be able to automatically revalidate the proper `useData` cache in the future.
 >
-> If you would rather not keep a reference to the right `mutate` around, tag your requests with [cache tags](#cache-tags) and call `unstable_mutateWithTags` instead.
+> If you would rather not keep a reference to the right `mutate` around, tag your requests with SWR's `tags` option and call `revalidateTag` instead, see [Cache Tags](#cache-tags).
 
 We also recommend you to wrap `useMutation` with your own custom hooks for better reusability, just like `useData`.
 
@@ -401,50 +403,51 @@ Callback function when a remote mutation has thrown an error.
 
 ### Cache Tags
 
-Calling `mutate` after every `trigger` works, but it couples the mutation to whichever `useData` hook happens to be mounted nearby. Cache tags let you revalidate requests by name instead: tag the requests when you make them, then call `unstable_mutateWithTags` with the same tags after a mutation.
-
-Tags are passed inside the request options of `useData`, `useDataImmutable` and `useInfinite`, next to Hey API's own `path` / `query` / `body`, and must start with `#`:
+Calling `mutate` after every `trigger` works, but it couples the mutation to whichever `useData` hook happens to be mounted nearby. SWR's cache tags (SWR 2.6+) let you revalidate requests by name instead: pass the `tags` SWR option when you make the requests, then call `revalidateTag` with the same tag after a mutation.
 
 ```tsx
-import { unstable_mutateWithTags } from 'tayori';
+import { useSWRConfig } from 'swr';
 
 export const useAllPlanets = (pageIndex?: number, perPage?: number) => {
-  return useData(getAllPlanets, {
-    query: { page: pageIndex, per_page: perPage },
-    cacheTags: ['#planets'] // [!code highlight]
-  });
+  return useData(
+    getAllPlanets,
+    { query: { page: pageIndex, per_page: perPage } },
+    { tags: ['planets'] } // [!code highlight]
+  );
 };
 
-export const useCreatePlanet = () => useMutation(createPlanet, {
-  onSuccess() {
-    // revalidate every mounted request tagged with "#planets",
-    // no matter which page / perPage it was requested with
-    unstable_mutateWithTags(['#planets']); // [!code highlight]
-  }
-});
+export const useCreatePlanet = () => {
+  const { revalidateTag } = useSWRConfig();
+  return useMutation(createPlanet, {
+    onSuccess() {
+      // revalidate every mounted request tagged with "planets",
+      // no matter which page / perPage it was requested with
+      revalidateTag('planets'); // [!code highlight]
+    }
+  });
+};
 ```
-
-`unstable_mutateWithTags` revalidates every tayori request whose `cacheTags` share at least one tag with the given list. tayori strips `cacheTags` before forwarding the request options to the Hey API SDK, so they never reach your server.
 
 A few things to keep in mind:
 
-- Tags are part of the SWR key. `useData(getAllPlanets, { query })` and `useData(getAllPlanets, { query, cacheTags: ['#planets'] })` are two different cache entries, so tag consistently, ideally inside your custom hooks.
-- `unstable_mutateWithTags` uses SWR's global `mutate` under the hood, so it only reaches the default SWR cache. Tagged requests living in a custom cache `provider` (configured through `<SWRConfig />`) will not be revalidated. See the hook variant below.
-- Pages loaded by `useInfinite` are matched by their tags, but the aggregated list returned by `useInfinite` is not refetched yet (SWR's filter-based `mutate` skips `useSWRInfinite` keys). Use the `mutate` returned by `useInfinite` for now.
-- As the `unstable_` prefix suggests, the API may still change in a minor release.
+- Tags are an SWR option, not part of the request, so they are not part of the SWR key: tagging a request does not change its cache entry.
+- A tag attaches to a cache entry when its request settles, so `revalidateTag` only refetches entries that a mounted hook has fetched; an entry whose hook is not mounted refetches on its next mount anyway.
+- `revalidateTag` from `useSWRConfig()` is bound to the cache provider of the nearest `<SWRConfig />`. The `revalidateTag` export of `swr` only reaches the default cache.
 
-Inside React, prefer the `unstable_useMutateWithTags()` hook. It returns the same function bound to the cache provider of the nearest `<SWRConfig />`, so it also works with a custom cache `provider`:
+To change one entry without refetching it, for example to clear a deleted resource (refetching it would only produce a 404), use SWR's `mutate` with a filter over tayori's keys. A tayori key is `[client, sdkMethod, requestOptions]`:
 
 ```tsx
-import { unstable_useMutateWithTags } from 'tayori';
+import { useSWRConfig } from 'swr';
+import { isInternalSWRKey } from 'tayori';
 
-const invalidateTags = unstable_useMutateWithTags();
-const { data } = useData(getAllPlanets, { query: {}, cacheTags: ['#planets'] });
-const { trigger } = useMutation(createPlanet);
+const { mutate } = useSWRConfig();
 
-// Inside the submission handler:
-await trigger({ body: formData });
-await invalidateTags(['#planets']);
+// after a delete: clear the entry, no refetch
+await mutate(
+  (key) => isInternalSWRKey(key) && Array.isArray(key) && key[1] === getPlanet && (key[2] as { path?: { planetId?: number } }).path?.planetId === planetId,
+  undefined,
+  { revalidate: false }
+);
 ```
 
 ### Fetching within an Event Handler
@@ -718,9 +721,10 @@ When first loading the page, the user will immediately see the loading UI. After
 
 tayori 0.4.0 splits the project into `tayori-core` (the shared runtime), `tayori` (Hey API mode, this page) and [`tayori-connect`](/connect) (ConnectRPC mode). The Hey API hooks keep their signatures, but a few behaviours changed:
 
-- **SWR key layout.** Keys are now `[client, sdkMethod, requestOptions, cacheTags]`: the Hey API client instance comes first (it was `[sdkMethod, requestOptions, cacheTags]`). Middlewares that destructure a key after `isInternalSWRKey()` must shift by one slot, and keys built by hand (for SWR's `mutate()` or `fallback`) need the client, which the new `useClient()` hook returns. `isInternalSWRKey()` also narrows to the `useInfinite` key loader when SWR hands it one, so check `Array.isArray(key)` before indexing.
+- **SWR key layout.** Keys are now `[client, sdkMethod, requestOptions]`: the Hey API client instance comes first and `cacheTags` are gone (it was `[sdkMethod, requestOptions, cacheTags]`). Middlewares that destructure a key after `isInternalSWRKey()` must shift by one slot, and keys built by hand (for SWR's `mutate()` or `fallback`) need the client, which the new `useClient()` hook returns. `isInternalSWRKey()` also narrows to the `useInfinite` key loader when SWR hands it one, so check `Array.isArray(key)` before indexing.
 - **Hooks outside `<TayoriProvider />` throw.** `useData`, `useDataImmutable` and `useInfinite` used to silently never fetch when no provider was mounted; they now throw at render with a clear message, like `useMutation` and `usePreload` already did.
 - **`kyOptions.throwHttpErrors` is forced for mutations too.** `useData` already set it for `@hey-api/client-ky`; `useMutation().trigger()` now goes through the same code path, so non-2xx responses always throw.
-- **Tag invalidation reaches more entries.** `unstable_mutateWithTags()` now also revalidates requests whose options were passed as a function, and the new `unstable_useMutateWithTags()` hook uses the cache provider of the nearest `<SWRConfig />`.
+- **`cacheTags` and `unstable_mutateWithTags` are removed.** Use SWR's own cache tags instead: pass `tags` in the SWR options (the third argument) and call `revalidateTag` from `useSWRConfig()`, see [Cache Tags](#cache-tags). They need SWR 2.6, which is now the minimum `swr` peer version (`^2.6.0-beta.0` until 2.6 is stable). Tags are no longer part of the SWR key, so tagging a request does not change its cache entry anymore.
 - **`responseStyle: 'data'` SDKs are supported.** Hooks used to be typed as `never` (`data: undefined`) for SDKs generated with `responseStyle: 'data'`; they now resolve to the response body in both styles, and the `Options` / `RequestResult` type arguments of `tayori()` are optional.
+- **`keepPreviousData` is no longer forced.** `<TayoriProvider />` used to install `keepPreviousData: true` for every hook below it, which an outer `<SWRConfig />` could not override. It now installs no SWR options at all, so SWR's default (`false`) applies: pass `keepPreviousData: true` per hook or in your own `<SWRConfig />` where you relied on it, e.g. for paginated views that should keep the current page on screen while the next one loads.
 - **Fetchers.** A `fetcher` passed in a hook's own SWR options is honoured (handy for tests and stories), while a global `fetcher` in `<SWRConfig />` is no longer applied to tayori requests.

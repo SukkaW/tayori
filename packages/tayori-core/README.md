@@ -18,7 +18,7 @@ import type { TayoriBackend, TayoriSimpleTypes } from 'tayori-core';
 const backend: TayoriBackend<TayoriSimpleTypes<Method, Arg, Data>, Client> = {
   name: 'my-backend',
   methodKey: (method) => method,
-  argKey: (_method, { cacheTags, ...arg }) => [arg, cacheTags],
+  argKey: (_method, arg) => arg,
   call: (client, method, arg) => client.call(method, arg)
 };
 

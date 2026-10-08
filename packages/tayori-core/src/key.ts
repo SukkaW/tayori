@@ -3,8 +3,7 @@ import type { TayoriKey } from './types';
 /**
  * Brand attached (as a non-enumerable property) to every SWR key array and `useInfinite` key loader
  * created by tayori. Its value is the name of the backend that created the key. SWR never hashes it
- * (`stableHash` only visits array indices), it only lets `isTayoriKey` and tag matching recognize
- * tayori keys.
+ * (`stableHash` only visits array indices), it only lets `isTayoriKey` recognize tayori keys.
  *
  * `Symbol.for` is used on purpose: if a bundle ends up with two copies of `tayori-core`
  * (dual package hazard, mismatched versions), they still recognize each other's keys.

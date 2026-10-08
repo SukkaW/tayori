@@ -1,4 +1,4 @@
-import type { CacheTag, TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
+import type { TayoriBackend, TayoriTypes, TypeFn } from 'tayori-core';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- Hey API's generated types are generic over throwOnError / responseStyle, `any` is what lets TypeScript infer from them */
 
@@ -57,9 +57,7 @@ type OriginalSdkArg<SdkMethod> = SdkMethod extends (...args: infer P) => any
   ? Omit<NonNullable<P[0]>, 'responseStyle' | 'throwOnError'>
   : never;
 
-export type TayoriSdkArg<SdkMethod> = OriginalSdkArg<SdkMethod> & {
-  cacheTags?: CacheTag[]
-};
+export type TayoriSdkArg<SdkMethod> = OriginalSdkArg<SdkMethod>;
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -73,11 +71,8 @@ export interface SdkDataOf extends TypeFn {
 }
 
 // ---------- runtime types, provided by the user: `tayori<Options, RequestResult>()` ----------
-/**
- * The runtime shape of a Hey API SDK argument as tayori sees it: the generated request options
- * (`SDKOptions`), plus tayori's own `cacheTags`.
- */
-export type HeyApiSdkArg<SDKOptions extends GeneralSdkOptions = any> = SDKOptions & { cacheTags?: CacheTag[] };
+/** The runtime shape of a Hey API SDK argument as tayori sees it: the generated request options (`SDKOptions`) */
+export type HeyApiSdkArg<SDKOptions extends GeneralSdkOptions = any> = SDKOptions;
 
 /**
  * What tayori's internal SDK call resolves to: the `RequestResult` type passed to
@@ -119,13 +114,10 @@ export function createHeyApiBackend<
     sdkMethod: GeneralSdkMethod,
     sdkArg: HeyApiSdkArg<SDKOptions>
   ): Promise<HeyApiSdkData<SDKRequestResult>> {
-    // Strip cacheTags before forwarding to the SDK, it is tayori's
-    const { cacheTags: _unusedCacheTags, ...restSdkArg } = sdkArg;
-
     const options = {
       // default method options
       client,
-      ...restSdkArg,
+      ...sdkArg,
       // allows errors to be catched by SWR / useMutation
       // TODO: we might wanna use throwOnError: false once Hey API actually respects the option
       // see https://github.com/hey-api/openapi-ts/pull/3814
@@ -162,11 +154,8 @@ export function createHeyApiBackend<
     name: HEY_API_BACKEND_NAME,
     // The SDK function itself identifies the request. SWR hashes functions by identity.
     methodKey: (sdkMethod) => sdkMethod,
-    // Strip cacheTags before forwarding to the SDK, but keep them in the key
-    argKey(_sdkMethod, sdkArg) {
-      const { cacheTags, ...restSdkArg } = sdkArg;
-      return [restSdkArg, cacheTags];
-    },
+    // Keys are lossless: the request options themselves
+    argKey: (_sdkMethod, sdkArg) => sdkArg,
     call: callSdk
   };
 }

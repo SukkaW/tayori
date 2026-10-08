@@ -140,6 +140,50 @@ export default function DashboardLayout({ children }: React.PropsWithChildren) {
 >
 > `initTransport` only runs once per `<TayoriProvider />` instance. If a part of your app talks to a different Connect server, or needs a differently configured transport (gRPC-web instead of the Connect protocol, another `baseUrl`, ...), nest another `<TayoriProvider initTransport={...} />` around that subtree. The transport is part of every SWR key, so requests made through different providers get their own cache entries and never collide, even when they call the same method with the same request.
 
+When only some services live on another server, for example under another base URL, you don't need a second provider: compose one transport that routes each call by service. Connect's `Transport` interface only has `unary` and `stream`, so this is all it takes:
+
+```ts
+import type { DescMethod } from '@bufbuild/protobuf';
+import type { Transport } from '@connectrpc/connect';
+
+function routeByService(main: Transport, other: Transport, otherServices: Set<string>): Transport {
+  const pick = (method: DescMethod) => (otherServices.has(method.parent.typeName) ? other : main);
+  return {
+    unary: (method, ...rest) => pick(method).unary(method, ...rest),
+    stream: (method, ...rest) => pick(method).stream(method, ...rest)
+  };
+}
+
+const transport = routeByService(
+  createConnectTransport({ baseUrl: API_URL }),
+  createConnectTransport({ baseUrl: FILES_URL }),
+  new Set([FileService.typeName])
+);
+```
+
+Pass it to `<TayoriProvider initTransport={() => transport} />`, and to any Connect client you create yourself, so that every call goes through the same transport.
+
+### Signing Out and Switching Accounts
+
+The transport is part of every SWR key. When one transport serves every account, because its interceptor reads the current credential, the responses of the previous account stay cached under the same keys. Clear the SWR cache whenever the account changes, with `unload` from `useSWRConfig()`:
+
+```tsx
+import { useSWRConfig } from 'swr';
+
+function useSignOut() {
+  const { unload } = useSWRConfig();
+  return async () => {
+    await signOut();
+    // drop every cached response of the previous account, useInfinite lists included
+    unload({ revalidate: false });
+  };
+}
+```
+
+- Use `unload` rather than `mutate(() => true, undefined)`. A filter `mutate` skips the entries of `useInfinite` (and `useSWRSubscription`), so the previous account's lists would stay in the cache. `unload` drops every entry, and stops requests that are still in flight from writing their results back.
+- Take `unload` from `useSWRConfig()`. The `unload` exported by `swr` only clears SWR's default cache, not the cache of a custom `provider`.
+- Until vercel/swr#4350 is released, a request that fails after `unload` can still write its error into the cleared cache.
+
 ## Data Fetching
 
 ```tsx
@@ -161,7 +205,7 @@ This is the very fundamental API of tayori-connect. It mirrors how you would cal
 
 This is the exact same shape as Hey API mode, `useData(sdkFn, requestOptions, swrOptions)`: the second argument always describes the request, the third argument always configures SWR. Nothing moves around when you switch between the two adapters, or use both in one app.
 
-The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request, cacheTags]`: the request object itself (without `cacheTags`), with `message` created by protobuf-es (`create()`, which fills in default values) and `headers` turned into a plain object with lower-cased names (see "Request Options and SWR Options" below). Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ message: { pageSize: 20 } }` and `{ message: { pageSize: 20, pageToken: '' } }` share the same cache entry.
+The response message will be passed as `data` and the error will be passed as `error`, just like SWR. Under the hood, the SWR key of a request is `[transport, 'connectrpc.eliza.v1.ElizaService/Say', request]`: the request object itself (without `signal`), with `message` created by protobuf-es (`create()`, which fills in default values) and `headers` turned into a plain object with lower-cased names (see "Request Options and SWR Options" below). Field order and fields left at their default value therefore don't matter: for a request message with a `pageToken` string field, `{ message: { pageSize: 20 } }` and `{ message: { pageSize: 20, pageToken: '' } }` share the same cache entry.
 
 We recommend you not to use `useData` directly in your application, instead wrap `useData` with your own custom hooks for better reusability, and consistent request/SWR options across your app.
 
@@ -266,9 +310,26 @@ const { data: planet } = useData(
 
 When the function throws an error (e.g., when `list` hasn't loaded yet and is `undefined`, accessing `list.planets` will throw), `useData` will also disable the request (just as if you returned a falsy value) until the next re-render.
 
+The same happens when tayori-connect cannot build the SWR key from a request: the request is paused and no error is reported. This is intentional and matches SWR, where a key function that throws means "not ready yet".
+
+### Transforming Responses
+
+`data` is the response message. When your components need a different shape, derive it at render from `data`, and memoize it when the transformation is expensive. Keep the request a plain request, so that its SWR key describes it completely:
+
+```tsx
+function usePlanetNames() {
+  const { data, error, isLoading } = useData(PlanetService.method.listPlanets, { message: { pageSize: 100 } });
+  const names = useMemo(() => data?.planets.map((planet) => planet.name).sort(), [data]);
+  return { names, error, isLoading };
+}
+```
+
+- Values that belong to the moment a response arrived, such as when it was received, come from SWR's `onSuccess` option. A `Date.now()` during render is the time of the render, not of the response.
+- A transformation that can fail, for example because a field it needs is missing, should not throw during render: that reaches the nearest error boundary instead of `error`. Return an explicit fallback or error state instead.
+
 ### Request Options and SWR Options
 
-The second argument of `useData` describes the request. Next to `message`, it takes Connect's per-call options and tayori's own `cacheTags`. The third argument takes [SWR options](https://swr.vercel.app/docs/api#options), and nothing else:
+The second argument of `useData` describes the request. Next to `message`, it takes Connect's per-call options. The third argument takes [SWR options](https://swr.vercel.app/docs/api#options), and nothing else:
 
 ```tsx
 // The whole request is the SWR key: callbacks and context values compare by identity, so create
@@ -287,9 +348,7 @@ useData(
     headers: { 'x-api-version': '2' }, // [!code highlight]
     timeoutMs: 5000, // [!code highlight]
     contextValues,
-    onHeader,
-    // tayori options, see "Cache Tags" below
-    cacheTags: ['#eliza']
+    onHeader
   },
   {
     // SWR options
@@ -309,7 +368,7 @@ The request accepts the `headers`, `timeoutMs`, `contextValues`, `onHeader` and 
 
 > **Which request options are part of the SWR key?**
 >
-> All of them. The SWR key is the transport, the method and the whole request (`message`, `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`, `cacheTags`), exactly like in Hey API mode where the whole request options are the key, and a hook sends exactly the request of its key. Two hooks that differ in any of them, say another `Accept-Language` header or another `timeoutMs`, get their own cache entries.
+> All of them. The SWR key is the transport, the method and the whole request (`message`, `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`), exactly like in Hey API mode where the whole request options are the key, and a hook sends exactly the request of its key. Two hooks that differ in any of them, say another `Accept-Language` header or another `timeoutMs`, get their own cache entries.
 >
 > tayori-connect normalizes what it can, so equivalent requests share one entry: `message` goes through protobuf-es' `create()` (field order and default values don't matter), and `headers` become a plain object with lower-cased names (a plain object or a `Headers` instance, in any case). Other plain data compares by value. Everything else compares by identity, so when it is created during render, every render is a new key and thus a new request:
 >
@@ -320,6 +379,20 @@ The request accepts the `headers`, `timeoutMs`, `contextValues`, `onHeader` and 
 > Create them outside of your component, or memoize them with `useMemo` / `useCallback`. Avoid per-request values in `headers` too (request ids, rotating tokens): every new value is a new cache entry, put them into a transport interceptor instead.
 >
 > If something changes the response of your server, it belongs into `message`. Anything that should apply to every request (auth, tracing, locale) belongs into a transport interceptor.
+
+The same goes for response headers that matter for every call, such as the server's `Date` header when you need the clock skew between client and server: read them in a transport interceptor rather than with a per-request `onHeader`.
+
+```ts
+import type { Interceptor } from '@connectrpc/connect';
+
+const readServerClock: Interceptor = (next) => async (req) => {
+  const res = await next(req);
+  const serverTime = Date.parse(res.header.get('date') ?? '');
+  // `clockSkew` is any store of yours, e.g. read with `useSyncExternalStore`
+  if (Number.isFinite(serverTime)) clockSkew.set(serverTime - Date.now());
+  return res;
+};
+```
 
 ### Disable Automatic Revalidations
 
@@ -334,6 +407,30 @@ const { data, error, isLoading } = useDataImmutable(PlanetService.method.getPlan
 ```
 
 `useDataImmutable` has the same interface as `useData`. Under the hood, `useDataImmutable` is built on top of SWR's `useSWRImmutable`.
+
+### Polling and Retries
+
+Polling and retrying are SWR options, so they go into the third argument. For example, refresh a job every two seconds until it is done, and retry failures every two seconds for about a minute, except for errors that won't go away by retrying:
+
+```tsx
+import { Code, ConnectError } from '@connectrpc/connect';
+
+const { data } = useData(JobService.method.getJob, { message: { id } }, {
+  // 0 stops polling. SWR also pauses interval refreshes while the tab is hidden.
+  refreshInterval: (latest) => (latest?.done ? 0 : 2000),
+  shouldRetryOnError: (error) => ConnectError.from(error).code !== Code.NotFound,
+  onErrorRetry: (_error, _key, _config, revalidate, { retryCount }) => {
+    if (retryCount > 30) return;
+    setTimeout(() => revalidate({ retryCount }), 2000);
+  }
+});
+```
+
+To refresh on demand, for example from a "Refresh" button, call the `mutate()` returned by the hook.
+
+> **tayori-connect never cancels a read**
+>
+> SWR does not cancel in-flight requests. When the request of a hook changes, or the component unmounts, the request still finishes and fills its own cache entry, which makes coming back to it instant. That is why `useData` takes no `signal`. Don't abort reads from your own code either, for example from an interceptor: SWR writes the error of a rejected request into the shared cache, so every hook on that key would show the cancellation as `error`. Use `useMutation`'s `trigger` with a `signal` for calls you need to cancel.
 
 ## Mutation
 
@@ -382,7 +479,7 @@ function PlanetCreationForm() {
 >
 > Internally, `useData` includes the method (`planets.v1.PlanetService/ListPlanets`) in the SWR key, while a mutation calls a different method (`planets.v1.PlanetService/CreatePlanet`). tayori-connect can't infer which `useData` cache entries a mutation affects, so you need to call `mutate` manually to revalidate the relevant SWR cache after a mutation.
 >
-> If you would rather not keep a reference to the right `mutate` around, tag your requests with [cache tags](#cache-tags) and call `unstable_mutateWithTags` instead.
+> If you would rather not keep a reference to the right `mutate` around, tag your requests with SWR's `tags` option and call `revalidateTag` instead, see [Cache Tags](#cache-tags).
 
 We also recommend you to wrap `useMutation` with your own custom hooks for better reusability, just like `useData`.
 
@@ -419,9 +516,9 @@ Callback function when a remote mutation has thrown an error. The `error` argume
 
 **populateCache**
 
-Write the response message into the `useData` cache entry of the same method and request (`message`, `headers` and `cacheTags` included), see [Fetching within an Event Handler](#fetching-within-an-event-handler) below.
+Write the response message into the `useData` cache entry of the same method and request (`message` and call options included), see [Fetching within an Event Handler](#fetching-within-an-event-handler) below.
 
-Connect's call options are **not** mutation options. Just like with `useData`, they describe one request, so they travel with the request you pass to `trigger`: `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`, tayori's `cacheTags` (only used together with `populateCache`, to target the `useData` cache entry that was created with the same tags), plus `signal`, an `AbortSignal` to abort the in-flight call (an `AbortSignal` belongs to one call, which is why it only exists on `trigger`'s request):
+Connect's call options are **not** mutation options. Just like with `useData`, they describe one request, so they travel with the request you pass to `trigger`: `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`, plus `signal`, an `AbortSignal` to abort the in-flight call (an `AbortSignal` belongs to one call, which is why it only exists on `trigger`'s request):
 
 ```tsx
 const { trigger } = useMutation(PlanetService.method.updatePlanet);
@@ -446,50 +543,52 @@ There are no hook-level call options. If every call of a mutation needs the same
 
 ### Cache Tags
 
-Calling `mutate` after every `trigger` works, but it couples the mutation to whichever `useData` hook happens to be mounted nearby. Cache tags let you revalidate requests by name instead: tag the requests when you make them, then call `unstable_mutateWithTags` with the same tags after a mutation.
-
-Tags are passed through the `cacheTags` field of the request (the second argument of `useData` and `useDataImmutable`, the request returned by `useInfinite`'s `getRequest`, and the request passed to `preload` or `trigger`), and must start with `#`:
+Calling `mutate` after every `trigger` works, but it couples the mutation to whichever `useData` hook happens to be mounted nearby. SWR's cache tags (SWR 2.6+) let you revalidate requests by name instead: pass the `tags` SWR option when you make the requests, then call `revalidateTag` with the same tag after a mutation.
 
 ```tsx
-import { unstable_mutateWithTags } from 'tayori-connect';
+import { useSWRConfig } from 'swr';
 
 export const usePlanets = (pageSize = 20, pageToken?: string) => {
-  return useData(PlanetService.method.listPlanets, {
-    message: { pageSize, pageToken },
-    cacheTags: ['#planets'] // [!code highlight]
-  });
+  return useData(
+    PlanetService.method.listPlanets,
+    { message: { pageSize, pageToken } },
+    { tags: ['planets'] } // [!code highlight]
+  );
 };
 
-export const useCreatePlanet = () => useMutation(PlanetService.method.createPlanet, {
-  onSuccess() {
-    // revalidate every mounted request tagged with "#planets",
-    // no matter which pageSize / pageToken it was requested with
-    unstable_mutateWithTags(['#planets']); // [!code highlight]
-  }
-});
+export const useCreatePlanet = () => {
+  const { revalidateTag } = useSWRConfig();
+  return useMutation(PlanetService.method.createPlanet, {
+    onSuccess() {
+      // revalidate every mounted request tagged with "planets",
+      // no matter which pageSize / pageToken it was requested with
+      revalidateTag('planets'); // [!code highlight]
+    }
+  });
+};
 ```
-
-`unstable_mutateWithTags` revalidates every tayori request whose `cacheTags` share at least one tag with the given list. Tags never leave the client, they are not sent to your server.
 
 A few things to keep in mind:
 
-- Tags are part of the SWR key. `useData(PlanetService.method.listPlanets, { message })` and `useData(PlanetService.method.listPlanets, { message, cacheTags: ['#planets'] })` are two different cache entries, so tag consistently, ideally inside your custom hooks.
-- `unstable_mutateWithTags` uses SWR's global `mutate` under the hood, so it only reaches the default SWR cache. Tagged requests living in a custom cache `provider` (configured through `<SWRConfig />`) will not be revalidated. See the hook variant below.
-- Pages loaded by `useInfinite` are matched by their tags, but the aggregated list returned by `useInfinite` is not refetched yet (SWR's filter-based `mutate` skips `useSWRInfinite` keys). Use the `mutate` returned by `useInfinite` for now.
-- As the `unstable_` prefix suggests, the API may still change in a minor release.
+- Tags are an SWR option, not part of the request, so they are not part of the SWR key: tagging a request does not change its cache entry.
+- A tag attaches to a cache entry when its request settles, so `revalidateTag` only refetches entries that a mounted hook has fetched; an entry whose hook is not mounted refetches on its next mount anyway.
+- `revalidateTag` from `useSWRConfig()` is bound to the cache provider of the nearest `<SWRConfig />`. The `revalidateTag` export of `swr` only reaches the default cache.
 
-Inside React, prefer the `unstable_useMutateWithTags()` hook. It returns the same function bound to the cache provider of the nearest `<SWRConfig />`, so it also works with a custom cache `provider`:
+To change one entry without refetching it, for example to clear a deleted resource (refetching it would only produce a `NotFound` error), use SWR's `mutate` with a filter over tayori's keys. A tayori-connect key is `[transport, '<service>/<method>', request]`:
 
 ```tsx
-import { unstable_useMutateWithTags } from 'tayori-connect';
+import { useSWRConfig } from 'swr';
+import { isTayoriConnectKey } from 'tayori-connect';
 
-const invalidateTags = unstable_useMutateWithTags();
-const { data } = useData(PlanetService.method.listPlanets, { message: { pageSize: 20 }, cacheTags: ['#planets'] });
-const { trigger } = useMutation(PlanetService.method.createPlanet);
+const { mutate } = useSWRConfig();
+const getPlanet = `${PlanetService.typeName}/${PlanetService.method.getPlanet.name}`;
 
-// Inside the submission handler:
-await trigger({ message: { name: 'Mars' } });
-await invalidateTags(['#planets']);
+// after a delete: clear the entry, no refetch
+await mutate(
+  (key) => isTayoriConnectKey(key) && Array.isArray(key) && key[1] === getPlanet && (key[2].message as { id?: string }).id === id,
+  undefined,
+  { revalidate: false }
+);
 ```
 
 ### Fetching within an Event Handler
@@ -535,7 +634,7 @@ const { trigger, isMutating } = useMutation(PlanetService.method.getPlanet, { po
 trigger({ message: { id: 'earth' } }, { populateCache: true });
 ```
 
-Since the whole request (except `signal`) is the SWR key, pass the same request to `trigger` as to the `useData` hook you are populating, `cacheTags` and call options included, e.g. `trigger({ message: { id: 'earth' }, cacheTags: ['#planets'] })` for a hook tagged with `#planets`.
+Since the whole request (except `signal`) is the SWR key, pass the same request to `trigger` as to the `useData` hook you are populating, call options included.
 
 ## Pagination and Infinite Loading
 
@@ -556,7 +655,7 @@ const { data, error, isLoading } = useData(PlanetService.method.listPlanets, {
 </button>
 ```
 
-Since `data` is retained while the next page is loading (`keepPreviousData` is enabled by default), the current page stays on screen until the next one arrives. You can even preload the next page by abstracting the page as a dedicated component:
+Every page token is a new SWR key, so `data` is `undefined` while the next page loads. Pass SWR's `keepPreviousData: true` option (per hook, or app-wide through `<SWRConfig />`) to keep the current page on screen until the next one arrives. You can even preload the next page by abstracting the page as a dedicated component:
 
 ```tsx
 function Page({ pageToken }: { pageToken?: string }) {
@@ -580,6 +679,8 @@ function App() {
 
 However, there are some cases where you can't use `useData`, typically infinite loading where you need the previous page's response (its `nextPageToken`) to determine the next page's request, or a UI that shows every page that has been fetched so far. Here is when `useInfinite` comes in handy.
 
+`useInfinite` loads more pages when you ask for them with `setSize`, for example from a "Load more" button. Don't call `setSize` from an effect to load every page of a list: paginate the UI, or ask your server for a bigger page.
+
 ### useInfinite
 
 You can use `useInfinite` (built on top of SWR's `useSWRInfinite`) from tayori-connect for this use case:
@@ -602,7 +703,7 @@ const { data: pages, size, setSize, isLoading, mutate } = useInfinite(
 );
 ```
 
-`useInfinite` accepts the unary method descriptor as the first argument, a "getRequest" function as the second argument (it receives the page index and the previous page's response message, and returns the request of the next page, the same `{ message, headers?, cacheTags?, ... }` object as `useData`'s second argument, or a falsy value to stop), and optional SWR Infinite options as the third argument.
+`useInfinite` accepts the unary method descriptor as the first argument, a "getRequest" function as the second argument (it receives the page index and the previous page's response message, and returns the request of the next page, the same `{ message, headers?, ... }` object as `useData`'s second argument, or a falsy value to stop), and optional SWR Infinite options as the third argument.
 
 > **Destructuring is safe — but DO NOT spread the return value of `useInfinite`!**
 >
@@ -637,14 +738,13 @@ useInfinite(
 );
 ```
 
-Just like with `useData`, `cacheTags` and Connect call options are not SWR options: they belong to the request returned by `getRequest`, so they can even differ from page to page:
+Just like with `useData`, Connect call options are not SWR options: they belong to the request returned by `getRequest`, so they can even differ from page to page:
 
 ```tsx
 const getRequest = (pageIndex: number, previousPageData: ListPlanetsResponse | null) => {
   if (previousPageData && !previousPageData.nextPageToken) return null;
   return {
     message: { pageSize: 20, pageToken: previousPageData?.nextPageToken },
-    cacheTags: ['#planets'], // [!code highlight]
     timeoutMs: 10_000 // [!code highlight]
   };
 };
@@ -679,7 +779,7 @@ function App() {
 }
 ```
 
-`preload(method, request)` takes the same request object as `useData`'s second argument (`message`, `headers`, `cacheTags`, ...), but no SWR options. Make sure it matches the `useData` call you are preloading for, since the whole request is the SWR key.
+`preload(method, request)` takes the same request object as `useData`'s second argument (`message`, `headers`, ...), but no SWR options. Make sure it matches the `useData` call you are preloading for, since the whole request is the SWR key.
 
 > **Why can't I preload outside of React like SWR?**
 >
@@ -829,7 +929,7 @@ When first loading the page, the user will immediately see the loading UI. After
 
 ## Differences from Hey API Mode
 
-Both packages are thin adapters on top of the same core (`tayori-core`) and share the same hook signatures, `useData(method, request, swrOptions)` and `trigger(request, mutationOptions?)`: the second argument always describes the request, the third always configures SWR. SWR options, `useDataImmutable`, `useInfinite`, the return values of `useMutation`, `usePreload`, `unstable_mutateWithTags` and the re-render optimization all behave identically, and the two providers can even be nested in the same app. What differs is what goes into the request:
+Both packages are thin adapters on top of the same core (`tayori-core`) and share the same hook signatures, `useData(method, request, swrOptions)` and `trigger(request, mutationOptions?)`: the second argument always describes the request, the third always configures SWR. SWR options, `useDataImmutable`, `useInfinite`, the return values of `useMutation`, `usePreload`, SWR's cache tags and the re-render optimization all behave identically, and the two providers can even be nested in the same app. What differs is what goes into the request:
 
 | | Hey API mode (`tayori`) | ConnectRPC mode (`tayori-connect`) |
 | --- | --- | --- |
@@ -839,7 +939,7 @@ Both packages are thin adapters on top of the same core (`tayori-core`) and shar
 | Second hook argument (the request) | Hey API request options, e.g. `{ path, query, body, headers }` | the request message under `message` (Connect's own name for it, `UnaryRequest.message`) next to Connect's per-call options, e.g. `{ message: { sentence: 'Hello' }, headers }` |
 | Third hook argument | SWR options | SWR options |
 | `data` | the `data` field of the SDK result | the response message, e.g. `SayResponse` |
-| `cacheTags` | inside the request | inside the request |
+| Cache tags | SWR's `tags` option (third argument) | SWR's `tags` option (third argument) |
 | Per-call `headers`, timeouts... | inside the request (all part of the SWR key) | inside the request (all part of the SWR key) |
 | `trigger`'s request | the same Hey API request options | the same request object as `useData`, plus an optional `signal` |
 | Error type | whatever your Hey API client throws (e.g. `HTTPError` from ky) | `ConnectError` |

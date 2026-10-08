@@ -7,7 +7,7 @@ import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
 import type { TayoriConnectMethodKey, TayoriConnectRequest } from './backend';
 import { createConnectBackend } from './backend';
 
-export type { CacheTag, Falsy, UseMutationOptions } from 'tayori-core';
+export type { Falsy, UseMutationOptions } from 'tayori-core';
 export type {
   MethodInput,
   MethodOutput,
@@ -20,13 +20,13 @@ export type {
 } from './backend';
 
 /**
- * Slot 2 of a tayori-connect SWR key: the request itself without `cacheTags`, with the message
+ * Slot 2 of a tayori-connect SWR key: the request itself (without `signal`), with the message
  * created (`create()`) and the headers as a plain record with lower-cased names.
  */
-export type TayoriConnectArgKey = Omit<TayoriConnectRequest, 'cacheTags'>;
+export type TayoriConnectArgKey = TayoriConnectRequest;
 
 /**
- * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", request, cacheTags]`
+ * The SWR key of a tayori-connect request: `[transport, "<service>/<method>", request]`
  */
 export type TayoriConnectKey = TayoriKey<Transport, TayoriConnectMethodKey, TayoriConnectArgKey>;
 
@@ -106,10 +106,10 @@ export function tayoriConnect() {
      * // when this function throws or returns a falsy value, the request will be paused
      * useData(ElizaService.method.say, () => (name ? { message: { sentence: `I am ${name}` } } : null));
      *
-     * // Connect call options and cacheTags live in the request, SWR options go third
+     * // Connect call options live in the request, SWR options go third
      * useData(
      *   ElizaService.method.say,
-     *   { message: { sentence: 'Hello' }, headers: { 'x-foo': 'bar' }, cacheTags: ['#eliza'] },
+     *   { message: { sentence: 'Hello' }, headers: { 'x-foo': 'bar' } },
      *   { revalidateOnFocus: false }
      * );
      * ```
@@ -185,5 +185,3 @@ export function tayoriConnect() {
 export function isTayoriConnectKey(key: unknown): key is TayoriConnectKey | BrandedTayoriKeyLoader<Transport, TayoriConnectMethodKey, TayoriConnectArgKey> {
   return isTayoriKey(key) && key[kTayoriKey] === 'tayori-connect';
 }
-
-export { unstable_mutateWithTags, unstable_useMutateWithTags } from 'tayori-core';

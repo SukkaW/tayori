@@ -77,8 +77,7 @@ describe('useData requests that cannot be keyed', () => {
     const backend = createFakeBackend();
     backend.argKey = (_method, arg) => {
       if (arg.id === 13) throw new Error('cannot serialize');
-      const { cacheTags, ...rest } = arg;
-      return [rest, cacheTags];
+      return arg;
     };
     const instance = createTayori(backend);
     const wrapper = createWrapper({ Provider: instance.TayoriProvider, initClient: () => ({ name: 'c1' }) });

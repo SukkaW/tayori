@@ -3,13 +3,13 @@ import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Middleware } from 'swr';
+import { useSWRConfig } from 'swr';
 import sinon from 'sinon';
 
-import { isInternalSWRKey, isZodError, tayori, unstable_mutateWithTags } from '.';
+import { isInternalSWRKey, isZodError, tayori } from '.';
 import { createFakeClient, createFakeSdk } from '../test/fake-sdk';
 import type { FakeSdkOptions } from '../test/fake-sdk';
 import { createWrapper } from '../test/wrapper';
-import { createTag } from '../test/cache-tag';
 
 const { useData, useDataImmutable, useInfinite, useMutation, usePreload, TayoriProvider } = tayori();
 
@@ -40,13 +40,12 @@ describe('useData', () => {
     const { client, wrapper } = setup();
     const { sdk, calls } = createFakeSdk<Item>((options) => ({ id: Number(options.query?.id) }));
 
-    const { result } = renderHook(() => useData(sdk, { query: { id: 1 }, cacheTags: ['#items'] }), { wrapper });
+    const { result } = renderHook(() => useData(sdk, { query: { id: 1 } }), { wrapper });
 
     expect(result.current.isLoading).toEqual(true);
     await waitFor(() => {
       expect(result.current.data).toEqual({ id: 1 });
     });
-    // `cacheTags` is tayori's, it never reaches the SDK
     expect(calls).toEqual([{
       client,
       query: { id: 1 },
@@ -169,7 +168,7 @@ describe('useInfinite', () => {
 });
 
 describe('useMutation', () => {
-  it('trigger() passes the arg through (cacheTags stripped, ky errors forced like the fetch path) and resolves with .data', async () => {
+  it('trigger() passes the arg through (ky errors forced like the fetch path) and resolves with .data', async () => {
     const { client, wrapper } = setup();
     const { sdk, calls } = createFakeSdk<Item>(() => ({ id: 3 }));
 
@@ -177,7 +176,7 @@ describe('useMutation', () => {
 
     let response: Item | undefined;
     await act(async () => {
-      response = await result.current.trigger({ body: { name: 'x' }, kyOptions: { retry: 0 }, cacheTags: ['#items'] });
+      response = await result.current.trigger({ body: { name: 'x' }, kyOptions: { retry: 0 } });
     });
     expect(response).toEqual({ id: 3 });
     expect(result.current.data).toEqual({ id: 3 });
@@ -289,7 +288,7 @@ describe('isInternalSWRKey', () => {
     };
     const wrapper = createWrapper({ TayoriProvider, initClient: () => client, swr: { use: [spy] } });
 
-    const { result } = renderHook(() => useData(sdk, { query: { id: 1 }, cacheTags: ['#items'] }), { wrapper });
+    const { result } = renderHook(() => useData(sdk, { query: { id: 1 } }), { wrapper });
 
     await waitFor(() => {
       expect(result.current.data).toEqual({ id: 1 });
@@ -302,44 +301,37 @@ describe('isInternalSWRKey', () => {
     if (typeof key === 'function') {
       throw new TypeError('expected a resolved key array');
     }
-    // [client, sdkMethod, argWithoutCacheTags, cacheTags]
-    expect(Array.from(key)).toEqual([client, sdk, { query: { id: 1 } }, ['#items']]);
+    // [client, sdkMethod, sdkArg]
+    expect(Array.from(key)).toEqual([client, sdk, { query: { id: 1 } }]);
 
     expect(isInternalSWRKey(null)).toEqual(false);
     expect(isInternalSWRKey('/api/items')).toEqual(false);
-    expect(isInternalSWRKey([client, sdk, { query: { id: 1 } }, undefined])).toEqual(false);
-    expect(isInternalSWRKey(() => [client, sdk, {}, undefined])).toEqual(false);
+    expect(isInternalSWRKey([client, sdk, { query: { id: 1 } }])).toEqual(false);
+    expect(isInternalSWRKey(() => [client, sdk, {}])).toEqual(false);
   });
 });
 
-describe('unstable_mutateWithTags', () => {
-  // `unstable_mutateWithTags` uses SWR's global `mutate`, which only reaches SWR's default cache, so this
-  // test opts out of the isolated cache provider and uses tags unique to itself (see `createTag`)
-  it('revalidates the hooks whose cacheTags match', async () => {
-    const [tag, other, unrelated] = [createTag('t'), createTag('other'), createTag('unrelated')];
-    const client = createFakeClient();
-    const wrapper = createWrapper({ TayoriProvider, initClient: () => client, swr: { provider: undefined } });
+describe('SWR tags', () => {
+  it('revalidateTag() from the nearest SWRConfig refetches the hooks tagged through the SWR options', async () => {
+    const { wrapper } = setup();
     const { sdk, calls } = createFakeSdk<Item>((options) => ({ id: Number(options.query?.id) }));
 
     const { result } = renderHook(() => ({
-      tagged: useData(sdk, { query: { id: 1 }, cacheTags: [tag, other] }),
-      untagged: useData(sdk, { query: { id: 2 } })
+      tagged: useData(sdk, { query: { id: 1 } }, { tags: ['items'] }).data,
+      untagged: useData(sdk, { query: { id: 2 } }).data,
+      swr: useSWRConfig()
     }), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.tagged.data).toEqual({ id: 1 });
-      expect(result.current.untagged.data).toEqual({ id: 2 });
+      expect(result.current.tagged).toEqual({ id: 1 });
+      expect(result.current.untagged).toEqual({ id: 2 });
     });
     expect(calls.length).toEqual(2);
 
-    await act(async () => {
-      await unstable_mutateWithTags([tag]);
-    });
+    await act(() => result.current.swr.revalidateTag('items'));
     expect(calls.map((call) => call.query)).toEqual([{ id: 1 }, { id: 2 }, { id: 1 }]);
 
-    await act(async () => {
-      await unstable_mutateWithTags([unrelated]);
-    });
+    await act(() => result.current.swr.revalidateTag('unrelated'));
     expect(calls.length).toEqual(3);
   });
 });

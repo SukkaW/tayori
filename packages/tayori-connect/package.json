@@ -66,12 +66,12 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sinon": "^22.1.0",
-    "swr": "^2.5.1"
+    "swr": "^2.6.0-beta.0"
   },
   "peerDependencies": {
     "@bufbuild/protobuf": "^2.7.0",
     "@connectrpc/connect": "^2.0.0",
     "react": ">=19.2.0",
-    "swr": "^2.4.0"
+    "swr": "^2.6.0-beta.0"
   }
 }
