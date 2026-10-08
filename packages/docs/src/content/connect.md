@@ -8,7 +8,7 @@ pnpm install tayori-connect @connectrpc/connect @connectrpc/connect-web @bufbuil
 yarn add tayori-connect @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf
 ```
 
-`tayori-connect` is built for `@connectrpc/connect` v2 and `@bufbuild/protobuf` v2. `@connectrpc/connect-web` provides the transports for browsers (Connect protocol and gRPC-web), if you also call your services from Node.js (e.g. in Server Components or during server-side rendering) install `@connectrpc/connect-node` as well. `react` (19.2 or later) and `swr` (2.6 or later) are peer dependencies, just like with `tayori`.
+`tayori-connect` is built for `@connectrpc/connect` v2 and `@bufbuild/protobuf` v2. `@connectrpc/connect-web` provides the transports for browsers (Connect protocol and gRPC-web). `react` (19.2 or later) and `swr` (2.6 or later) are peer dependencies, just like with `tayori`.
 
 ### Generate code from your Protobuf schema
 
@@ -40,8 +40,6 @@ service PlanetService {
   rpc ListPlanets(ListPlanetsRequest) returns (ListPlanetsResponse);
   rpc CreatePlanet(CreatePlanetRequest) returns (Planet);
   rpc UpdatePlanet(UpdatePlanetRequest) returns (Planet);
-  // server streaming, see the "Streaming" section below
-  rpc WatchPlanets(WatchPlanetsRequest) returns (stream Planet);
 }
 
 message Planet {
@@ -62,7 +60,6 @@ message UpdatePlanetRequest {
   string id = 1;
   string name = 2;
 }
-message WatchPlanetsRequest {}
 ```
 
 ### Create tayori provider and hooks
@@ -292,8 +289,8 @@ When the function throws an error (e.g., when `list` hasn't loaded yet and is `u
 The second argument of `useData` describes the request. Next to `message`, it takes Connect's per-call options. The third argument takes [SWR options](https://swr.vercel.app/docs/api#options), and nothing else:
 
 ```tsx
-// The whole request is the SWR key: callbacks and context values compare by identity, so create
-// them once (or memoize them) instead of inline, see "Which request options are part of the SWR key?"
+// Callbacks and context values compare by identity, so create them once (or memoize them)
+// instead of inline, see "Which request options identify a cache entry?"
 const contextValues = useMemo(() => createContextValues().set(kTenant, tenant), [tenant]);
 const onHeader = useCallback((headers: Headers) => {
   // response headers
@@ -326,7 +323,7 @@ useData(
 
 The request accepts the `headers`, `timeoutMs`, `contextValues`, `onHeader` and `onTrailer` call options: exactly what you would pass as the second argument of a Connect client method, just flattened next to `message` (`signal` is only available on `useMutation`'s `trigger`, SWR manages the lifecycle of `useData` requests itself). The shape is exported as `TayoriConnectRequest` (and `TayoriConnectMutationRequest` for `trigger`) if you need to build requests outside of a hook.
 
-> **Which request options are part of the SWR key?**
+> **Which request options identify a cache entry?**
 >
 > All of them. The transport, the method and the whole request (`message`, `headers`, `timeoutMs`, `contextValues`, `onHeader`, `onTrailer`) identify a cache entry, like the request options do in Hey API mode. Two hooks that differ in any of them, say another `Accept-Language` header or another `timeoutMs`, get their own cache entries.
 >
@@ -722,41 +719,6 @@ function Eliza() {
 
 For app-wide handling (e.g. redirecting to the login page on `Code.Unauthenticated`, or reporting to your error tracker), you can either use SWR's global `onError` through `<SWRConfig />`, or handle it once in a transport interceptor, so that it also applies to calls made outside of tayori-connect.
 
-## Streaming
-
-Only **unary** methods are supported for now. Passing a server streaming, client streaming or bidirectional streaming method descriptor to any tayori-connect hook throws a `TypeError` at render time. tayori-connect exposes the transport of the nearest `<TayoriProvider />` through `useTransport()`, so you can fall back to Connect's own `createClient()` for streaming (or for any ad-hoc call that should share your transport configuration):
-
-```tsx
-import { createClient } from '@connectrpc/connect';
-import { useTransport } from './lib/tayori';
-
-function PlanetWatcher() {
-  const transport = useTransport(); // [!code highlight]
-  const [planets, setPlanets] = useState<Planet[]>([]);
-
-  useEffect(() => {
-    const client = createClient(PlanetService, transport);
-    const controller = new AbortController();
-
-    (async () => {
-      try {
-        for await (const planet of client.watchPlanets({}, { signal: controller.signal })) {
-          setPlanets(current => [...current, planet]);
-        }
-      } catch (error) {
-        if (ConnectError.from(error).code !== Code.Canceled) throw error;
-      }
-    })();
-
-    return () => controller.abort();
-  }, [transport]);
-
-  return planets.map(planet => <div key={planet.id}>{planet.name}</div>);
-}
-```
-
-The transport is created once per `<TayoriProvider />` instance, so it is safe to use it as an effect dependency.
-
 ## Server-Side Rendering and Next.js
 
 ### Client Components
@@ -772,42 +734,6 @@ function MyComponent() {
   const { data } = usePlanets();
 }
 ```
-
-### Server-Side Rendering with Default Data
-
-You can call your Connect service on the server directly within a Server Component, using a Connect client and a Node.js transport from `@connectrpc/connect-node`, and pass the response to a Client Component as props:
-
-```tsx
-import { createClient } from '@connectrpc/connect';
-import { createConnectTransport } from '@connectrpc/connect-node';
-import { PlanetService } from '@/gen/planets/v1/planets_pb';
-
-// A Node.js transport, created once per server (outside of React)
-const transport = createConnectTransport({
-  baseUrl: process.env.API_URL!,
-  httpVersion: '2'
-});
-const planetClient = createClient(PlanetService, transport);
-
-async function ServerComponent() {
-  // you may call your Connect service directly in Server Components
-  const prefetched = await planetClient.listPlanets({ pageSize: 20 });
-
-  return <ClientComponent prefetched={prefetched} />;
-}
-```
-
-Then in the Client Component, you can pass the prefetched data from props to `useData`'s `fallbackData` option to pre-fill the cache:
-
-```tsx
-'use client';
-
-function ClientComponent({ prefetched }: { prefetched: ListPlanetsResponse }) {
-  const { data } = useData(PlanetService.method.listPlanets, { message: { pageSize: 20 } }, { fallbackData: prefetched });
-}
-```
-
-With `fallbackData`, the `data` returned by `useData` will never be `undefined`, even on the server, so you get the initial UI within the rendered HTML. Messages generated by protobuf-es v2 are plain objects, so they can cross the Server / Client Component boundary as props (React 19 serializes `bigint` for 64-bit integer fields and `Uint8Array` for `bytes` fields just fine).
 
 ### Real Time Client Side Data Fetching
 
@@ -844,4 +770,4 @@ Both packages share the same hook signatures, `useData(method, request, swrOptio
 | Cache tags | SWR's `tags` option (third argument) | SWR's `tags` option (third argument) |
 | `trigger`'s request | the same Hey API request options | the same request object as `useData`, plus an optional `signal` |
 | Error type | whatever your Hey API client throws (e.g. `HTTPError` from ky) | `ConnectError` |
-| Escape hatch | call the SDK function directly | `useTransport()` + `createClient()`, e.g. for streaming |
+| Escape hatch | call the SDK function directly | `useTransport()` + `createClient()` |

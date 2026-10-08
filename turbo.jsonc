@@ -8,8 +8,7 @@
     // env mode would otherwise strip them, e.g. swc-node then falls back to /tmp)
     "passThroughEnv": [
       "TMPDIR",
-      "BUF_CACHE_DIR",
-      "SWC_NATIVE_BINDING_CACHE"
+      "BUF_CACHE_DIR"
     ]
   },
   "tasks": {

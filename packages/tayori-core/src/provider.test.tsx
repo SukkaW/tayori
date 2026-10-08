@@ -4,7 +4,7 @@ import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 import sinon from 'sinon';
 
-import { createTayori, isTayoriKey, kTayoriKey } from '.';
+import { createTayori } from '.';
 import { createFakeBackend } from '../test/fake-backend';
 import type { FakeClient } from '../test/fake-backend';
 import { createWrapper } from '../test/wrapper';
@@ -102,25 +102,5 @@ describe('TayoriProvider', () => {
     await waitFor(() => {
       expect(result.current.data).toEqual('c1:Get:2');
     });
-  });
-
-  it('getKey builds the branded [client, methodKey, argKey] key of this instance', () => {
-    const instance = createTayori(createFakeBackend('one'));
-    const other = createTayori(createFakeBackend('two'));
-    const client: FakeClient = { name: 'c1' };
-
-    const key = instance.getKey(client, 'Get', { id: 1 });
-    const thunk = instance.getKey(client, 'Get', () => ({ id: 1 }));
-    const foreign = other.getKey(client, 'Get', { id: 1 });
-
-    expect(Array.from(key as Iterable<unknown>)).toEqual([client, 'Get', { id: 1 }]);
-    expect(isTayoriKey(key)).toEqual(true);
-    expect(isTayoriKey(thunk)).toEqual(true);
-    expect(isTayoriKey(foreign)).toEqual(true);
-    expect((key as NonNullable<typeof key>)[kTayoriKey]).toEqual('one');
-    expect((foreign as NonNullable<typeof foreign>)[kTayoriKey]).toEqual('two');
-
-    expect(isTayoriKey([client, 'Get', { id: 1 }])).toEqual(false);
-    expect(isTayoriKey(null)).toEqual(false);
   });
 });

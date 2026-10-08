@@ -58,21 +58,11 @@ export type {
 } from './types';
 
 /**
- * Create the tayori hooks + provider for a backend. This is what `tayori` (Hey API) and
- * `tayori-connect` (ConnectRPC) call under the hood. Each call creates an isolated instance with
- * its own React context and its own key brand, so multiple instances (even of different backends)
- * can be nested in the same React tree.
+ * Create the hooks and `<TayoriProvider />` of a backend adapter, like `tayori` (Hey API) and
+ * `tayori-connect` (ConnectRPC) do. Every call has its own React context, so instances can be nested
+ * in the same React tree. The hooks are typed through the backend's `TayoriTypes`.
  *
- * Every hook passes its own SWR fetcher, a closure over the method and the hook's latest argument,
- * so no SWR middleware is involved: a global `SWRConfig.fetcher` never applies to tayori keys,
- * while user middlewares that wrap the fetcher keep working.
- *
- * A request that cannot be resolved into a key is "not ready yet" and pauses the hook, exactly like
- * an SWR key function (or a Redux selector) that throws: see `resolveKey`.
- *
- * The hooks are generic over the method they receive and type the request / response through the
- * backend's `TayoriTypes` (see `ArgOf` / `DataOf`), so adapters only need to hand their backend to
- * this function.
+ * @see https://tayori.skk.moe
  */
 export function createTayori<T extends TayoriTypes, Client extends object>(
   backend: TayoriBackend<T, Client>
@@ -91,8 +81,7 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     return nullthrow(use(ClientContext), `[${backend.name}] hooks must be used within <TayoriProvider />`);
   }
 
-  // The provider only provides the client and installs no SWR options of its own (it used to force
-  // `keepPreviousData: true`), so SWR's defaults and the app's own `<SWRConfig />` apply unchanged.
+  // No SWR options of its own: SWR's defaults and the app's own `<SWRConfig />` apply unchanged.
   function TayoriProvider({ children, initClient }: TayoriProviderProps<Client>) {
     return (
       <ClientContext value={useSingleton(() => initClient()).current}>
@@ -128,21 +117,13 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
 
   /**
    * The SWR fetcher of a hook: it sends the request stored in the key (slot 2). Keys are lossless,
-   * `backend.argKey` only normalizes the request, so the key is the request, like in tayori 0.3.
+   * `backend.argKey` only normalizes the request, so the key is the request.
    * `useSWR` hands its fetcher the first key instance of a hash, which hashes the same and so
    * describes the same request as the latest one; `useSWRInfinite` builds every page key right
    * before fetching it.
    */
   function fetcherFor<D>(client: Client, method: Method): BareFetcher<D> {
     return (key: Key) => backend.call(client, method, key[2]) as Promise<D>;
-  }
-
-  /**
-   * Build the exact SWR key a hook of this instance would use for `method` + `arg`
-   * (`null` when the request is not ready).
-   */
-  function getKey<M extends Method>(client: Client, method: M, arg: ArgInput<M>): Key | null {
-    return resolveKey(client, backend.methodKey(method), method, arg);
   }
 
   // ---------- useData / useDataImmutable ----------
@@ -211,6 +192,7 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
 
     const { mutate: swrMutate } = useSWRConfig();
     const client = useClient();
+    const methodKey = backend.methodKey(method);
 
     // Every trigger() and reset() takes the next ticket. A mutation result is only applied if no
     // newer ticket has been issued in the meantime, so if trigger is called multiple times in a
@@ -247,10 +229,6 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
       async (mutationArg: MutationArgOf<T, M>, triggerOptions?: UseMutationOptions<D, unknown>) => {
         const arg = mutationArg as Arg;
         const mutationTicket = ++latestMutationTicketRef.current;
-
-        // Validate / identify the method BEFORE anything is sent (for tayori-connect this is where
-        // non-unary methods are rejected)
-        const methodKey = backend.methodKey(method);
 
         // We could have use swrMutate function here instead of calling the backend directly
         // But I don't want to work with optimisticData and rollbackOnError for now
@@ -368,7 +346,7 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
           throw e;
         }
       },
-      [client, method, setState, onSuccessFromHook, onErrorFromHook, populateCacheFromHook, swrMutate]
+      [client, method, methodKey, setState, onSuccessFromHook, onErrorFromHook, populateCacheFromHook, swrMutate]
     );
 
     const reset = useCallback(() => {
@@ -414,10 +392,6 @@ export function createTayori<T extends TayoriTypes, Client extends object>(
     useMutation,
     usePreload,
     TayoriProvider,
-    useClient,
-    /**
-     * Build the exact SWR key a hook of this instance would use. Useful for manual `mutate()` calls.
-     */
-    getKey
+    useClient
   } as const;
 }

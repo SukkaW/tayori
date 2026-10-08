@@ -25,8 +25,6 @@ export type DefaultSdkRequestResult = Promise<{
   response: Response
 }>;
 
-export const HEY_API_BACKEND_NAME = 'tayori';
-
 // ---------- per-method types, inferred from the SDK function a hook receives ----------
 // Deliberately unconstrained (`SdkMethod` instead of `SdkMethod extends GeneralSdkMethod`): the hooks
 // already constrain the method, and an unconstrained alias keeps its name in the hooks' signatures
@@ -151,7 +149,7 @@ export function createHeyApiBackend<
   }
 
   return {
-    name: HEY_API_BACKEND_NAME,
+    name: 'tayori',
     // The SDK function itself identifies the request. SWR hashes functions by identity.
     methodKey: (sdkMethod) => sdkMethod,
     // Keys are lossless: the request options themselves

@@ -11,7 +11,7 @@ const page = DOCS.connect;
 export const metadata: Metadata = createPageMetadata({
   path: page.path,
   title: `${page.title} — tayori`,
-  description: 'Use tayori-connect with ConnectRPC services and protobuf-es generated code: setup, useData, useMutation, useInfinite, cache tags, error handling, streaming and server-side rendering with Next.js.'
+  description: 'Use tayori-connect with ConnectRPC services and protobuf-es generated code: setup, useData, useMutation, useInfinite, cache tags, error handling and server-side rendering with Next.js.'
 });
 
 export default function ConnectDocsPage() {
