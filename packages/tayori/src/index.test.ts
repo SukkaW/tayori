@@ -1,7 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { setTimeout as delay } from 'node:timers/promises';
+import { wait as delay } from 'foxts/wait';
 import type { Middleware } from 'swr';
 import { useSWRConfig } from 'swr';
 import sinon from 'sinon';
@@ -15,7 +15,6 @@ const { useData, useDataImmutable, useInfinite, useMutation, usePreload, TayoriP
 
 /** Let pending microtasks / fetches settle */
 function settle(ms = 20) {
-  // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of this package
   return act(() => delay(ms));
 }
 /** A paused hook: no request, no data, not loading */

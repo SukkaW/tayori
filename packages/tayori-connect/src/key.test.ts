@@ -1,7 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { setTimeout as delay } from 'node:timers/promises';
+import { wait as delay } from 'foxts/wait';
 import sinon from 'sinon';
 import type { Middleware } from 'swr';
 import { unstable_serialize } from 'swr';
@@ -25,7 +25,6 @@ const { useData, useInfinite, TayoriProvider } = tayoriConnect();
 const plain = (key: unknown) => Array.from(key as Iterable<unknown>);
 /** Let pending microtasks / fetches settle */
 function settle(ms = 20) {
-  // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of this package
   return act(() => delay(ms));
 }
 /** A paused hook: no request, no data, not loading */

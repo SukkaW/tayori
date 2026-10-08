@@ -1,7 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { setTimeout as delay } from 'node:timers/promises';
+import { wait as delay } from 'foxts/wait';
 import { SWRConfig, useSWRConfig } from 'swr';
 import type { DescMethod } from '@bufbuild/protobuf';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
@@ -32,7 +32,6 @@ function Loans() {
 
 /** Let pending fetches settle */
 function settle(ms = 20) {
-  // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of this package
   return act(() => delay(ms));
 }
 
