@@ -1,7 +1,7 @@
 import { describe, it } from 'mocha';
 import { expect } from 'earl';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { setTimeout as delay } from 'node:timers/promises';
+import { wait as delay } from 'foxts/wait';
 import { unstable_serialize, useSWRConfig } from 'swr';
 
 import { createTayori } from '.';
@@ -142,7 +142,6 @@ describe('useInfinite requests that cannot be keyed', () => {
       return { isLoading, data, error };
     }, { wrapper });
 
-    // eslint-disable-next-line sukka/prefer-foxts-wait -- foxts is not a dependency of tayori-core
     await act(() => delay(20));
     expect(result.current).toEqual({ isLoading: false, data: undefined, error: undefined });
     expect(backend.calls).toEqual([]);
