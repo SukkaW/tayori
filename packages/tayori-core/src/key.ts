@@ -31,12 +31,8 @@ export function brand<T extends object>(target: T, backendName: string): T & Tay
 }
 
 /**
- * Whether the given SWR key (or `useInfinite` key loader) was created by tayori, no matter which
- * backend (`tayori`, `tayori-connect`, ...) or which `createTayori()` instance created it.
- *
- * If you write your own SWR middleware, you can use this function to check if the SWR
- * request is from tayori or not. Note that SWR hands middlewares the raw key, which is the
- * (branded) key loader function for `useInfinite`, so check `Array.isArray(key)` before indexing.
+ * Whether the given SWR key belongs to a request made by a tayori hook (from `tayori` or
+ * `tayori-connect`), as opposed to your own `useSWR` calls. Use it in your own SWR middleware.
  */
 export function isTayoriKey(key: unknown): key is BrandedTayoriKey | BrandedTayoriKeyLoader {
   return !!key

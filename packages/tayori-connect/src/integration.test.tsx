@@ -8,7 +8,7 @@ import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError, createClient } from '@connectrpc/connect';
 import type { Transport } from '@connectrpc/connect';
 
-import { isTayoriConnectKey, tayoriConnect } from '.';
+import { isTayoriKey, tayoriConnect } from '.';
 import { BookService, Genre, GetBookRequestSchema, ListBooksRequestSchema } from '../test/gen/library/catalog/v1/book_pb';
 import { LoanService } from '../test/gen/library/lending/v1/loan_pb';
 import { createLibrary, LIBRARIAN } from '../test/library';
@@ -258,7 +258,7 @@ describe('lists', () => {
       await result.current.remove.trigger({ message: { id: 'b1' } });
       // revalidating a deleted book would only yield a NotFound error: clear its entry instead
       await result.current.swr.mutate(
-        (key) => isTayoriConnectKey(key) && Array.isArray(key) && key[1] === getBook && (key[2].message as { id?: string }).id === 'b1',
+        (key) => isTayoriKey(key) && Array.isArray(key) && key[1] === getBook && (key[2] as { message: { id?: string } }).message.id === 'b1',
         undefined,
         { revalidate: false }
       );

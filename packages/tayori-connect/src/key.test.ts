@@ -12,7 +12,7 @@ import { anyPack, anyUnpack, file_google_protobuf_any, FileDescriptorProtoSchema
 import { createContextValues, createRouterTransport } from '@connectrpc/connect';
 
 import type { TayoriConnectArgKey } from '.';
-import { isTayoriConnectKey, tayoriConnect } from '.';
+import { isTayoriKey, tayoriConnect } from '.';
 import { createConnectBackend, getMethodKey } from './backend';
 import { EchoRequestSchema, Kind, TestService } from '../test/gen/tayori/test/v1/test_pb';
 import type { EchoRequest, EchoResponse } from '../test/gen/tayori/test/v1/test_pb';
@@ -83,7 +83,7 @@ describe('tayori-connect SWR keys', () => {
     });
 
     const key = spy.keys[0];
-    expect(isTayoriConnectKey(key)).toEqual(true);
+    expect(isTayoriKey(key)).toEqual(true);
     const [client, methodKey, argKey] = plain(key);
     expect(transport).toExactlyEqual(client);
     expect(methodKey).toEqual('tayori.test.v1.TestService/Echo');
@@ -226,7 +226,7 @@ describe('tayori-connect SWR keys', () => {
 
     const key = spy.keys[0];
     expect(Array.isArray(key)).toEqual(true);
-    expect(isTayoriConnectKey(key)).toEqual(true);
+    expect(isTayoriKey(key)).toEqual(true);
     expect(plain(key)[1]).toEqual('tayori.test.v1.TestService/Echo');
     expect(plain(key)[2]).toEqual({ message: create(EchoRequestSchema, { text: 'thunk', big: 1n }) });
   });
@@ -262,10 +262,10 @@ describe('tayori-connect SWR keys', () => {
     const loader = spy.keys[0];
     expect(typeof loader).toEqual('function');
     expect(Array.isArray(loader)).toEqual(false);
-    expect(isTayoriConnectKey(loader)).toEqual(true);
+    expect(isTayoriKey(loader)).toEqual(true);
 
     const page = (loader as (pageIndex: number, previousPageData: EchoResponse | null) => unknown)(1, result.current.data![0]);
-    expect(isTayoriConnectKey(page)).toEqual(true);
+    expect(isTayoriKey(page)).toEqual(true);
     expect(plain(page)[1]).toEqual('tayori.test.v1.TestService/Echo');
     expect(plain(page)[2]).toEqual({ message: create(EchoRequestSchema, { text: 'list', pageToken: '1' }) });
   });
@@ -332,12 +332,12 @@ describe('createConnectBackend().argKey', () => {
   });
 });
 
-describe('isTayoriConnectKey', () => {
-  it('rejects keys that were not built by tayori-connect', () => {
-    expect(isTayoriConnectKey(null)).toEqual(false);
-    expect(isTayoriConnectKey('tayori.test.v1.TestService/Echo')).toEqual(false);
-    expect(isTayoriConnectKey([{}, 'tayori.test.v1.TestService/Echo', { message: { text: 'a' } }, undefined])).toEqual(false);
-    expect(isTayoriConnectKey(() => null)).toEqual(false);
+describe('isTayoriKey', () => {
+  it('rejects keys that were not built by tayori hooks', () => {
+    expect(isTayoriKey(null)).toEqual(false);
+    expect(isTayoriKey('tayori.test.v1.TestService/Echo')).toEqual(false);
+    expect(isTayoriKey([{}, 'tayori.test.v1.TestService/Echo', { message: { text: 'a' } }, undefined])).toEqual(false);
+    expect(isTayoriKey(() => null)).toEqual(false);
   });
 });
 
@@ -392,17 +392,8 @@ function checkRequestFieldTypes(request: EchoRequest): [string, bigint, Uint8Arr
   return [request.text, request.big, request.blob, request.tags];
 }
 
-// `isTayoriConnectKey` narrows to the key array OR the `useInfinite` key loader, so `Array.isArray` is needed before indexing
-function checkKeyNarrowing(key: unknown): TayoriConnectArgKey | null {
-  if (isTayoriConnectKey(key) && Array.isArray(key)) {
-    return key[2];
-  }
-  return null;
-}
-
 describe('type-level checks', () => {
   it('compiles', () => {
     expect(typeof checkRequestFieldTypes).toEqual('function');
-    expect(typeof checkKeyNarrowing).toEqual('function');
   });
 });
