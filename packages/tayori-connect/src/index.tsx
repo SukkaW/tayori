@@ -49,7 +49,7 @@ export interface TayoriConnectProviderProps extends React.PropsWithChildren {
 }
 
 /**
- * @see https://tayori.skk.moe/connect
+ * @see https://tayori.skk.moe/?backend=connect#docs
  *
  * @example
  *
@@ -72,7 +72,7 @@ export function tayoriConnect() {
   /**
    * You should wrap your app/routes with TayoriProvider and pass a function that creates the Connect transport.
    *
-   * @see https://tayori.skk.moe/connect
+   * @see https://tayori.skk.moe/?backend=connect#docs
    */
   function TayoriProvider({ children, initTransport }: TayoriConnectProviderProps) {
     return (
@@ -84,7 +84,7 @@ export function tayoriConnect() {
 
   return {
     /**
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      *
      * @example
      *
@@ -110,11 +110,11 @@ export function tayoriConnect() {
      */
     useData: core.useData,
     /**
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      */
     useDataImmutable: core.useDataImmutable,
     /**
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      *
      * @example
      *
@@ -132,7 +132,7 @@ export function tayoriConnect() {
      */
     useInfinite: core.useInfinite,
     /**
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      *
      * @example
      *
@@ -146,7 +146,7 @@ export function tayoriConnect() {
      */
     useMutation: core.useMutation,
     /**
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      *
      * @example
      *
@@ -160,7 +160,7 @@ export function tayoriConnect() {
     /**
      * You should wrap your app/routes with TayoriProvider and pass a function that creates the Connect transport.
      *
-     * @see https://tayori.skk.moe/connect
+     * @see https://tayori.skk.moe/?backend=connect#docs
      */
     TayoriProvider,
     /**

@@ -17,7 +17,7 @@ export default responseStyles.map((responseStyle) => ({
     {
       // `responseStyle: 'data'` is only supported by the fetch client
       name: '@hey-api/client-fetch',
-      // as required by tayori, see https://tayori.skk.moe/hey-api
+      // as required by tayori, see https://tayori.skk.moe/?backend=hey-api#configure-hey-api
       throwOnError: true
     },
     '@hey-api/typescript'

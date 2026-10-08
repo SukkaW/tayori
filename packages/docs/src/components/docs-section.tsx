@@ -1,9 +1,9 @@
 import * as stylex from '@stylexjs/stylex';
 
 import { getContent } from '../lib/content';
-import type { DocsSlug } from '../lib/docs';
-import { DocsSectionInner } from './toc';
+import { BackendDocs } from './backend-docs';
 import { DocsContent } from './docs-content';
+import { DocsSectionInner } from './toc';
 
 const styles = stylex.create({
   wrap: {
@@ -15,14 +15,16 @@ const styles = stylex.create({
   }
 });
 
-export function DocsSection({ slug }: { slug: DocsSlug }) {
-  const { toc, tocIds } = getContent(slug);
+export function DocsSection() {
+  const { toc, tocIds } = getContent();
 
   return (
     <section id="docs" {...stylex.props(styles.wrap)}>
-      <DocsSectionInner toc={toc} tocIds={tocIds}>
-        <DocsContent slug={slug} />
-      </DocsSectionInner>
+      <BackendDocs>
+        <DocsSectionInner toc={toc} tocIds={tocIds}>
+          <DocsContent />
+        </DocsSectionInner>
+      </BackendDocs>
     </section>
   );
 }

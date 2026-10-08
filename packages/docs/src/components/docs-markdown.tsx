@@ -31,7 +31,7 @@ const styles = stylex.create({
     marginBottom: '12px',
     marginLeft: '0',
     lineHeight: 1.25,
-    scrollMarginTop: 16,
+    scrollMarginTop: 72,
     counterIncrement: 'section',
     '::before': {
       content: 'counter(section, decimal-leading-zero)',
@@ -54,7 +54,7 @@ const styles = stylex.create({
     marginBottom: '9px',
     marginLeft: '0',
     color: '#1c1915',
-    scrollMarginTop: 16
+    scrollMarginTop: 72
   },
   paragraph: {
     fontSize: 14.5,

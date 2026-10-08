@@ -2,7 +2,7 @@
 
 An opinionated React client-side data fetching stack built on top of [SWR](https://swr.vercel.app) and [ConnectRPC](https://connectrpc.com) (`@connectrpc/connect` v2 + `@bufbuild/protobuf` v2). The ConnectRPC counterpart of [`tayori`](https://www.npmjs.com/package/tayori).
 
-Documentation: https://tayori.skk.moe/connect
+Documentation: https://tayori.skk.moe/?backend=connect#docs
 
 ```bash
 npm install tayori-connect @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf

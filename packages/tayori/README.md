@@ -4,8 +4,8 @@
 
 | Package | Backend | Docs |
 | --- | --- | --- |
-| [`tayori`](https://www.npmjs.com/package/tayori) | Hey API (OpenAPI) generated SDKs | [tayori.skk.moe/hey-api](https://tayori.skk.moe/hey-api) |
-| [`tayori-connect`](https://www.npmjs.com/package/tayori-connect) | ConnectRPC (`@connectrpc/connect` v2 + `@bufbuild/protobuf` v2) | [tayori.skk.moe/connect](https://tayori.skk.moe/connect) |
+| [`tayori`](https://www.npmjs.com/package/tayori) | Hey API (OpenAPI) generated SDKs | [tayori.skk.moe](https://tayori.skk.moe/?backend=hey-api#docs) |
+| [`tayori-connect`](https://www.npmjs.com/package/tayori-connect) | ConnectRPC (`@connectrpc/connect` v2 + `@bufbuild/protobuf` v2) | [tayori.skk.moe](https://tayori.skk.moe/?backend=connect#docs) |
 | [`tayori-core`](https://www.npmjs.com/package/tayori-core) | Shared runtime, for adapter authors | – |
 
 The documentation can be found at [https://tayori.skk.moe](https://tayori.skk.moe).
