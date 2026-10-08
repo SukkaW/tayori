@@ -1,10 +1,10 @@
 'use client';
 
-import type { BrandedTayoriKeyLoader, TayoriKey, TayoriProviderProps as CoreTayoriProviderProps } from 'tayori-core';
-import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
+import type { TayoriProviderProps as CoreTayoriProviderProps } from 'tayori-core';
+import { createTayori, isTayoriKey } from 'tayori-core';
 
-import type { DefaultSdkRequestResult, GeneralSdkMethod, GeneralSdkOptions, GeneralSdkRequestResult, HeyAPIClientLike } from './backend';
-import { createHeyApiBackend, HEY_API_BACKEND_NAME } from './backend';
+import type { DefaultSdkRequestResult, GeneralSdkOptions, GeneralSdkRequestResult, HeyAPIClientLike } from './backend';
+import { createHeyApiBackend } from './backend';
 
 export type { UseMutationOptions } from 'tayori-core';
 export type {
@@ -17,8 +17,6 @@ export type {
   SdkData,
   TayoriSdkArg
 } from './backend';
-
-type InternalSWRKey<SdkArg = unknown> = TayoriKey<HeyAPIClientLike, GeneralSdkMethod, SdkArg>;
 
 export interface TayoriProviderProps extends CoreTayoriProviderProps<HeyAPIClientLike> {
   /**
@@ -209,19 +207,12 @@ export function tayori<
   } as const;
 }
 
+export { isTayoriKey };
+
 /**
- * This is an internal function for distinguishing SWR requests is either from useData
- * or other userland useSWR calls.
- *
- * If you also write your own SWR middleware, you can use this function to check if the SWR
- * request is from tayori or not.
- *
- * Note that the key layout is `[client, sdkMethod, sdkArg]` (it was `[sdkMethod, sdkArg, cacheTags]`
- * before 0.4.0), and that SWR hands middlewares the raw key, which for `useInfinite` is the branded
- * `(pageIndex, previousPageData) => key` loader, so check `Array.isArray(key)` before indexing into it.
+ * @deprecated Renamed to `isTayoriKey`, which is the same function (it also recognizes
+ * `tayori-connect` requests now).
  */
-export function isInternalSWRKey(key: unknown): key is InternalSWRKey | BrandedTayoriKeyLoader<HeyAPIClientLike, GeneralSdkMethod> {
-  return isTayoriKey(key) && key[kTayoriKey] === HEY_API_BACKEND_NAME;
-}
+export const isInternalSWRKey = isTayoriKey;
 
 export { isZodError } from './_is-zod-error';

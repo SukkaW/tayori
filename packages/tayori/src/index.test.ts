@@ -6,7 +6,7 @@ import type { Middleware } from 'swr';
 import { useSWRConfig } from 'swr';
 import sinon from 'sinon';
 
-import { isInternalSWRKey, isZodError, tayori } from '.';
+import { isTayoriKey, isZodError, tayori } from '.';
 import { createFakeClient, createFakeSdk } from '../test/fake-sdk';
 import type { FakeSdkOptions } from '../test/fake-sdk';
 import { createWrapper } from '../test/wrapper';
@@ -277,7 +277,7 @@ describe('TayoriProvider', () => {
   });
 });
 
-describe('isInternalSWRKey', () => {
+describe('isTayoriKey', () => {
   it('recognizes the keys tayori builds and rejects everything else', async () => {
     const client = createFakeClient();
     const { sdk } = createFakeSdk<Item>(() => ({ id: 1 }));
@@ -294,8 +294,8 @@ describe('isInternalSWRKey', () => {
       expect(result.current.data).toEqual({ id: 1 });
     });
     const key = keys[0];
-    expect(isInternalSWRKey(key)).toEqual(true);
-    if (!isInternalSWRKey(key)) {
+    expect(isTayoriKey(key)).toEqual(true);
+    if (!isTayoriKey(key)) {
       throw new Error('unreachable');
     }
     if (typeof key === 'function') {
@@ -304,10 +304,10 @@ describe('isInternalSWRKey', () => {
     // [client, sdkMethod, sdkArg]
     expect(Array.from(key)).toEqual([client, sdk, { query: { id: 1 } }]);
 
-    expect(isInternalSWRKey(null)).toEqual(false);
-    expect(isInternalSWRKey('/api/items')).toEqual(false);
-    expect(isInternalSWRKey([client, sdk, { query: { id: 1 } }])).toEqual(false);
-    expect(isInternalSWRKey(() => [client, sdk, {}])).toEqual(false);
+    expect(isTayoriKey(null)).toEqual(false);
+    expect(isTayoriKey('/api/items')).toEqual(false);
+    expect(isTayoriKey([client, sdk, { query: { id: 1 } }])).toEqual(false);
+    expect(isTayoriKey(() => [client, sdk, {}])).toEqual(false);
   });
 });
 

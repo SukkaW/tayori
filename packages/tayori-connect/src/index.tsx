@@ -1,8 +1,8 @@
 'use client';
 
 import type { Transport } from '@connectrpc/connect';
-import type { BrandedTayoriKeyLoader, TayoriKey } from 'tayori-core';
-import { createTayori, isTayoriKey, kTayoriKey } from 'tayori-core';
+import type { TayoriKey } from 'tayori-core';
+import { createTayori } from 'tayori-core';
 
 import type { TayoriConnectMethodKey, TayoriConnectRequest } from './backend';
 import { createConnectBackend } from './backend';
@@ -177,11 +177,4 @@ export function tayoriConnect() {
   } as const;
 }
 
-/**
- * Whether the given SWR key (or `useInfinite` key loader) was created by tayori-connect. Useful in
- * your own SWR middlewares. Note that SWR hands middlewares the raw key, which is the key loader
- * function for `useInfinite`, so check `Array.isArray(key)` before indexing into it.
- */
-export function isTayoriConnectKey(key: unknown): key is TayoriConnectKey | BrandedTayoriKeyLoader<Transport, TayoriConnectMethodKey, TayoriConnectArgKey> {
-  return isTayoriKey(key) && key[kTayoriKey] === 'tayori-connect';
-}
+export { isTayoriKey } from 'tayori-core';
