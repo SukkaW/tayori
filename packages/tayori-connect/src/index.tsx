@@ -6,7 +6,15 @@ import { createTayori } from 'tayori-core';
 import type { TayoriConnectRequest } from './backend';
 import { createConnectBackend } from './backend';
 
-export type { Falsy, UseMutationOptions } from 'tayori-core';
+// Every tayori-core type in the hooks' signatures, so apps that emit declarations (`composite`,
+// `declaration`) can name them without depending on tayori-core (TS2742 / TS2883 under pnpm)
+export type {
+  Falsy,
+  SWRConfigurationWithOptionalFallback,
+  SWRInfiniteConfigurationWithOptionalFallback,
+  TayoriInfiniteKeyLoader,
+  UseMutationOptions
+} from 'tayori-core';
 export type {
   MethodInput,
   MethodOutput,

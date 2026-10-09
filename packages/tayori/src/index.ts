@@ -6,7 +6,15 @@ import { createTayori, isTayoriKey } from 'tayori-core';
 import type { DefaultSdkRequestResult, GeneralSdkOptions, GeneralSdkRequestResult, HeyAPIClientLike } from './backend';
 import { createHeyApiBackend } from './backend';
 
-export type { UseMutationOptions } from 'tayori-core';
+// Every tayori-core type in the hooks' signatures, so apps that emit declarations (`composite`,
+// `declaration`) can name them without depending on tayori-core (TS2742 / TS2883 under pnpm)
+export type {
+  Falsy,
+  SWRConfigurationWithOptionalFallback,
+  SWRInfiniteConfigurationWithOptionalFallback,
+  TayoriInfiniteKeyLoader,
+  UseMutationOptions
+} from 'tayori-core';
 export type {
   GeneralSdkMethod,
   HeyAPIClientLike,
