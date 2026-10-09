@@ -1,6 +1,6 @@
 {
   "name": "tayori-core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Backend-agnostic runtime shared by tayori (Hey API) and tayori-connect (ConnectRPC): branded SWR keys, provider, useData/useInfinite/useMutation machinery",
   "repository": {
     "type": "git",

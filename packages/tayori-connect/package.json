@@ -1,6 +1,6 @@
 {
   "name": "tayori-connect",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "SWR-powered React data fetching hooks for ConnectRPC (@connectrpc/connect v2 + @bufbuild/protobuf v2), built on tayori-core",
   "repository": {
     "type": "git",
