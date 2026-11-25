@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Instrument_Sans, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import * as stylex from '@stylexjs/stylex';
 import { stylexPropsWithClassName } from 'stylex-webpack/utils';
 import type { Graph, Person, SoftwareSourceCode, WebSite } from 'schema-dts';
@@ -22,16 +22,26 @@ const styles = stylex.create({
   }
 });
 
-const instrumentSans = Instrument_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
+const instrumentSans = localFont({
+  src: [
+    {
+      path: '../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2',
+      weight: '400 700',
+      style: 'normal'
+    },
+    {
+      path: '../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-italic.woff2',
+      weight: '400 700',
+      style: 'italic'
+    }
+  ],
   variable: '--font-instrument-sans'
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const jetbrainsMono = localFont({
+  src: '../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2',
+  weight: '100 800',
+  style: 'normal',
   variable: '--font-jetbrains-mono'
 });
 
